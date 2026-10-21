@@ -27,7 +27,7 @@ export async function startServer({ port, webRoot, session, version, log, get, p
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
     'Content-Security-Policy': "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; "
       + "script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
-      + "connect-src 'self' https: wss: ws://127.0.0.1:* ws://localhost:*; media-src 'self' https: blob:; frame-ancestors 'self'",
+      + "connect-src 'self' https: wss: ws://127.0.0.1:* ws://localhost:*; media-src 'self' https: blob:; worker-src 'self' blob:; frame-ancestors 'self'",
   };
   const json = (res, status, data) => {
     res.writeHead(status, { ...security, 'Content-Type': 'application/json; charset=utf-8' });
