@@ -2,7 +2,7 @@
 // Не ў AppData: праграмы з пакетаў MSIX бачаць там уласную віртуальную копію, і OBS не знайшоў бы файлы.
 // Папярэдняя версія застаецца побач у app.prev — вярнуць яе можна простым перайменаваннем.
 // Даныя (data\) не чапаюцца.
-import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -22,8 +22,14 @@ cpSync(join(root, 'web', 'dist'), join(staging, 'web', 'dist'), { recursive: tru
 // Свая копія Node.js: абнаўленне Node у сістэме не зломіць праграму.
 cpSync(process.execPath, join(staging, 'node.exe'));
 
+// Ядро, запушчанае з ранейшай версіі, трымае яе node.exe: Windows не дае выдаліць такі файл, але дае перайменаваць тэчку.
+// Занятая копія адсоўваецца ў app.old-*, а прыбіраецца пры наступным усталяванні, калі ўжо вольная.
+for (const name of readdirSync(home).filter(n => n.startsWith('app.old-'))) {
+  try { rmSync(join(home, name), { recursive: true, force: true }); } catch { /* яшчэ занятая */ }
+}
 if (existsSync(target)) {
-  rmSync(previous, { recursive: true, force: true });
+  try { rmSync(previous, { recursive: true, force: true }); }
+  catch { renameSync(previous, join(home, `app.old-${Date.now()}`)); }
   renameSync(target, previous);
 }
 renameSync(staging, target);
