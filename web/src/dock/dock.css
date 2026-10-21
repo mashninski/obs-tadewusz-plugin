@@ -1,0 +1,150 @@
+/* Дадаткі да агульнага стылю дока (music/ui/dock/dock.css): укладкі галасавання, радка, налад і стану. */
+
+.tabs {
+  flex-wrap: wrap;
+}
+
+/* Тры кропкі стану справа ўверсе: Twitch, OBS, Spotify. */
+.dots {
+  display: flex;
+  gap: 5px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+}
+.dot.good { background: var(--green); }
+.dot.wait { background: #e8b339; }
+.dot.bad { background: var(--danger); }
+
+textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.btn.danger { color: var(--danger); }
+.icon-btn.danger { color: var(--danger); }
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+.inline input,
+.inline select {
+  flex: 1;
+  min-width: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0 10px;
+}
+
+/* Галасаванне */
+.voting-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.status-line {
+  margin: 0;
+  font-weight: 600;
+}
+.status-line.good { color: var(--green); }
+.status-line.bad { color: var(--danger); }
+.status-line.muted { color: var(--muted); }
+
+.entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entries li {
+  border-bottom: 1px solid var(--line);
+}
+.entries li.open {
+  background: rgba(255, 255, 255, 0.03);
+}
+.entry {
+  display: grid;
+  grid-template-columns: 1.6em 3.4em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.entry-rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+.entry-code { font: 600 12px Consolas, monospace; letter-spacing: 0.06em; color: #b9e6c9; }
+.entry-title { overflow-wrap: anywhere; }
+.entry-title small { display: block; color: #e8b339; font-size: 11px; }
+.entry-score { font-variant-numeric: tabular-nums; font-weight: 600; }
+.entry-editor { padding: 2px 4px 10px; }
+.add { margin: -14px 0 28px; }
+
+.countdown { flex: 1; font-variant-numeric: tabular-nums; font-weight: 600; }
+.winner { margin: 0 0 10px; }
+.review { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; color: var(--danger); }
+
+.carry {
+  width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.carry td { padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.carry .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.carry tr.removed td { color: var(--danger); }
+
+/* Бягучы радок */
+.now-ticker { margin-bottom: 16px; }
+.now-ticker p { margin: 0 0 6px; }
+.announcement { margin-bottom: 12px; }
+.announcement .toolbar { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.announcement .toolbar .count { margin-left: auto; }
+.bold-preview { padding: 4px 2px; color: var(--muted); white-space: pre-wrap; font-size: 12px; }
+.bold-preview strong { color: var(--text); }
+.ticker-queue { margin: 0; padding-left: 18px; }
+.ticker-queue li { margin: 2px 0; overflow-wrap: anywhere; }
+
+/* Налады */
+.sticky-save {
+  position: sticky;
+  top: 38px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -6px -12px 16px;
+  padding: 6px 12px;
+  background: var(--bg);
+}
+.sticky-save .notice { margin: 0; }
+
+/* Стан */
+.history { margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.history li { padding: 2px 0; }
+.steam-results { padding-left: 16px; font-size: 12px; }

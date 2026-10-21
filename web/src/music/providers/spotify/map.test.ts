@@ -1,0 +1,181 @@
+import { describe, expect, it } from 'vitest';
+import * as q from '../../core/queue';
+import type { Track } from '../../core/types';
+import { applyPlayback, canSave, optimisticSkip, parseItem, parsePlayback, parseQueue, type SpotifyPlayback } from './map';
+
+const spotifyTrack = (id: string) => ({
+  type: 'track',
+  id,
+  uri: `spotify:track:${id}`,
+  name: `Песня ${id}`,
+  artists: [{ name: 'Першы' }, { name: 'Другі' }],
+  duration_ms: 200_000,
+  explicit: true,
+});
+
+const track = (id: string): Track => parseItem(spotifyTrack(id))!;
+
+describe('адказы Spotify', () => {
+  it('трэк: выканаўцы праз коску, explicit, uri', () => {
+    expect(parseItem(spotifyTrack('x'))).toEqual({
+      id: 'x',
+      title: 'Песня x',
+      artist: 'Першы, Другі',
+      durationMs: 200_000,
+      explicit: true,
+      uri: 'spotify:track:x',
+    });
+  });
+
+  it('эпізод падкаста: «выканаўца» — назва шоу', () => {
+    const ep = parseItem({ type: 'episode', id: 'e', uri: 'spotify:episode:e', name: 'Выпуск 1', show: { name: 'Падкаст' }, duration_ms: 1000 });
+    expect(ep).toMatchObject({ title: 'Выпуск 1', artist: 'Падкаст' });
+    expect(canSave(ep)).toBe(true);
+  });
+
+  it('лакальны файл: без id, у «Любімыя» не дадаць', () => {
+    const local = parseItem({ type: 'track', id: null, uri: 'spotify:local:a:b:c:100', name: 'Мой файл', artists: [], duration_ms: 100_000, is_local: true });
+    expect(local?.id).toBe('spotify:local:a:b:c:100');
+    expect(canSave(local)).toBe(false);
+  });
+
+  it('стан плэера; рэклама і пусты адказ — нічога не грае', () => {
+    expect(parsePlayback({ is_playing: true, progress_ms: 5000, item: spotifyTrack('a'), device: { name: 'ПК' } })).toMatchObject({
+      isPlaying: true,
+      progressMs: 5000,
+      device: 'ПК',
+      track: { id: 'a' },
+    });
+    expect(parsePlayback({ is_playing: true, currently_playing_type: 'ad', item: null })).toMatchObject({ track: null, isPlaying: false });
+    expect(parsePlayback(null)).toBeNull();
+  });
+
+  it('чарга: сапсаваныя элементы прапускаюцца', () => {
+    expect(parseQueue({ queue: [spotifyTrack('b'), { foo: 1 }, spotifyTrack('c')] }).map((t) => t.id)).toEqual(['b', 'c']);
+    expect(parseQueue({})).toEqual([]);
+  });
+});
+
+describe('стан плэера са Spotify', () => {
+  it('новая песня і чарга', () => {
+    const s = applyPlayback(q.emptyPlayerState(), { isPlaying: true, progressMs: 10, track: track('a'), device: 'ПК', volume: null, supportsVolume: false }, [track('b'), track('c')]);
+    expect(s.current?.track.id).toBe('a');
+    expect(s.isPlaying).toBe(true);
+    expect(s.context.map((c) => c.track.id)).toEqual(['b', 'c']);
+  });
+
+  it('тая ж песня — ключ не мяняецца, нік гледача захоўваецца', () => {
+    const base = { ...q.emptyPlayerState(), current: { key: 'k', track: track('a'), requestedBy: 'kasia' } };
+    const s = applyPlayback(base, { isPlaying: false, progressMs: 50, track: track('a'), device: '', volume: null, supportsVolume: false }, null);
+    expect(s.current).toMatchObject({ key: 'k', requestedBy: 'kasia' });
+    expect(s.progressMs).toBe(50);
+  });
+
+  it('песня змянілася на першую з чаргі, чарга не перачытвалася — яна здымаецца з чаргі', () => {
+    const base = applyPlayback(q.emptyPlayerState(), { isPlaying: true, progressMs: 0, track: track('a'), device: '', volume: null, supportsVolume: false }, [track('b'), track('c')]);
+    const s = applyPlayback(base, { isPlaying: true, progressMs: 0, track: track('b'), device: '', volume: null, supportsVolume: false }, null);
+    expect(s.context.map((c) => c.track.id)).toEqual(['c']);
+  });
+
+  it('заказы гледачоў не кранаюцца', () => {
+    const base = { ...q.emptyPlayerState(), requests: [{ key: 'r', track: track('r'), requestedBy: 'u' }] };
+    expect(applyPlayback(base, null, []).requests).toEqual(base.requests);
+  });
+});
+
+describe('заказы гледачоў у Spotify', () => {
+  const play = (id: string) => ({ isPlaying: true, progressMs: 0, track: track(id), device: 'ПК', volume: null, supportsVolume: false });
+
+  it('адпраўлены заказ зайграў — ён бягучы з нікам гледача і ключом заказу, у чарзе заказаў яго больш няма', () => {
+    const base = {
+      ...q.emptyPlayerState(),
+      current: { key: 'sp:a', track: track('a') },
+      requests: [
+        { key: 'req1', track: track('r'), requestedBy: 'kasia', sentAt: 1 },
+        { key: 'req2', track: track('z'), requestedBy: 'ales' },
+      ],
+    };
+    const s = applyPlayback(base, play('r'), [track('b')], 5);
+    expect(s.current).toEqual({ key: 'req1', track: track('r'), requestedBy: 'kasia' });
+    expect(s.requests.map((r) => r.key)).toEqual(['req2']);
+    expect(s.history.at(-1)?.key).toBe('sp:a');
+  });
+
+  it('неадпраўлены заказ з той жа песняй не «краде» песню, што грае з плэйліста', () => {
+    const base = { ...q.emptyPlayerState(), requests: [{ key: 'req1', track: track('r'), requestedBy: 'kasia' }] };
+    const s = applyPlayback(base, play('r'), null);
+    expect(s.current?.requestedBy).toBeUndefined();
+    expect(s.requests).toHaveLength(1);
+  });
+
+  it('адпраўлены заказ стаіць у чарзе Spotify — у «Далей у Spotify» яго няма (не двойчы)', () => {
+    const base = { ...q.emptyPlayerState(), requests: [{ key: 'req1', track: track('r'), requestedBy: 'kasia', sentAt: 1 }] };
+    const s = applyPlayback(base, play('a'), [track('r'), track('b')], 2);
+    expect(s.context.map((c) => c.track.id)).toEqual(['b']);
+    expect(q.toOverlayState(s).upcoming.map((u) => [u.title, u.requestedBy])).toEqual([
+      ['Песня r', 'kasia'],
+      ['Песня b', undefined],
+    ]);
+  });
+
+  it('Spotify аднавіў чаргу з нашым заказам — заказ лічыцца адпраўленым і не паказваецца двойчы', () => {
+    const base = { ...q.emptyPlayerState(), requests: [{ key: 'req1', track: track('r'), requestedBy: 'kasia' }] };
+    const s = applyPlayback(base, play('a'), [track('r'), track('b')], 7);
+    expect(s.requests[0].sentAt).toBe(7);
+    expect(s.context.map((c) => c.track.id)).toEqual(['b']);
+  });
+});
+
+
+const pb = (id: string, progressMs = 0): SpotifyPlayback => ({
+  isPlaying: true,
+  progressMs,
+  track: track(id),
+  device: '',
+  volume: null,
+  supportsVolume: false,
+});
+
+describe('хуткі водгук у доку', () => {
+  it('гучнасць прылады', () => {
+    expect(parsePlayback({ is_playing: true, item: spotifyTrack('a'), device: { name: 'ПК', volume_percent: 42.4, supports_volume: true } })).toMatchObject({
+      volume: 42,
+      supportsVolume: true,
+    });
+    expect(parsePlayback({ is_playing: true, item: spotifyTrack('a'), device: { name: 'Тэлефон', volume_percent: null } })).toMatchObject({
+      volume: null,
+      supportsVolume: false,
+    });
+  });
+
+  it('ключы чаргі не мяняюцца, калі чарга зрушылася (менш анімацыі)', () => {
+    const a = applyPlayback(q.emptyPlayerState(), pb('a'), [track('b'), track('c'), track('b')]);
+    expect(a.context.map((c) => c.key)).toEqual(['sp:spotify:track:b#1', 'sp:spotify:track:c#1', 'sp:spotify:track:b#2']);
+    const b = applyPlayback(a, pb('b'), [track('c'), track('b'), track('d')]);
+    expect(b.context[0].key).toBe(a.context[1].key);
+  });
+
+  it('прайграныя песні трапляюць у гісторыю', () => {
+    const a = applyPlayback(q.emptyPlayerState(), pb('a'), [track('b')]);
+    const b = applyPlayback(a, pb('b'), []);
+    expect(b.history.map((h) => h.track.id)).toEqual(['a']);
+  });
+
+  it('«наступная» адразу: першая з чаргі; «папярэдняя»: з гісторыі або нанова пасля 3 с', () => {
+    const a = applyPlayback(q.emptyPlayerState(), pb('a'), [track('b'), track('c')]);
+    const next = optimisticSkip(a, 'next');
+    expect(next.current?.track.id).toBe('b');
+    expect(next.context.map((c) => c.track.id)).toEqual(['c']);
+    expect(next.progressMs).toBe(0);
+    // Пацверджанне ад Spotify — той жа элемент, без лішняй анімацыі.
+    expect(applyPlayback(next, pb('b'), null).current?.key).toBe(next.current?.key);
+
+    const back = optimisticSkip(next, 'previous');
+    expect(back.current?.track.id).toBe('a');
+    expect(back.context.map((c) => c.track.id)).toEqual(['b', 'c']);
+
+    const restart = optimisticSkip({ ...next, progressMs: 10_000 }, 'previous');
+    expect(restart.current?.track.id).toBe('b');
+    expect(restart.progressMs).toBe(0);
+  });
+});

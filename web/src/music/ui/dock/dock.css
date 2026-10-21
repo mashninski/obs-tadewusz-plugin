@@ -1,0 +1,642 @@
+/* Док: цёмная тэма побач з OBS, зялёныя акцэнты Spotify. Шырыня дока можа быць ад ~260 px. */
+
+:root {
+  --green: #1ed760;
+  --green-dark: #1db954;
+  --bg: #121212;
+  --panel-2: #262626;
+  --line: #333;
+  --text: #fff;
+  --muted: #a7a7a7;
+  --danger: #f15e6c;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Блокі без фону: зоны аддзяляюцца толькі адступамі. */
+section {
+  margin: 0 0 28px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Падказка: паўпразрысты «?», тэкст усплывае на плашцы пры навядзенні. */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Толькі знак «?» без кружка, памерам з ранейшы кружок — выразны, без пікселяў. */
+.info-tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.4;
+  cursor: help;
+  transition: opacity 0.12s;
+}
+
+.info-tip:hover .info-tip-icon,
+.info-tip-icon:focus-visible {
+  opacity: 0.9;
+}
+
+.info-tip-text {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  z-index: 10;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 10px 12px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+  pointer-events: none;
+}
+
+.info-tip:hover .info-tip-text,
+.info-tip:focus-within .info-tip-text {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+/* Абзацы і крокі ўнутры падказкі. */
+.help-par {
+  margin: 0 0 8px;
+}
+.help-par:last-child,
+.help-steps:last-child {
+  margin-bottom: 0;
+}
+.help-line {
+  display: block;
+}
+.help-steps {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.help-steps li {
+  margin: 2px 0;
+}
+
+p {
+  margin: 6px 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12px;
+}
+.mono {
+  font-family: Consolas, monospace;
+  word-break: break-all;
+}
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--danger);
+}
+
+/* Верхняя панэль */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.tab {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.obs-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #666;
+  cursor: pointer;
+}
+.obs-dot.connected {
+  background: var(--green);
+}
+.obs-dot.connecting,
+.obs-dot.error {
+  background: #f5b041;
+}
+.obs-dot.auth-failed {
+  background: var(--danger);
+}
+
+.content {
+  padding: 16px 12px 24px;
+}
+
+/* Што грае */
+.now-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+/* Новая песня з’яўляецца плаўна (ключ элемента — запіс песні). */
+.now-track {
+  animation: now-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes now-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+.now-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.now-head .now-title {
+  flex: 1;
+  min-width: 0;
+}
+.like {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.like.saved {
+  cursor: default;
+}
+.now-artist {
+  color: var(--muted);
+}
+.by {
+  margin-left: 6px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.progress {
+  height: 4px;
+  margin-top: 10px;
+  background: var(--panel-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--green);
+}
+.times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+.icon-btn.primary {
+  width: 40px;
+  height: 40px;
+  background: var(--text);
+  color: #000;
+}
+.icon-btn.primary:hover {
+  background: var(--green);
+}
+.icon-btn.small {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.icon-btn.danger:hover {
+  color: var(--danger);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.notice {
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(30, 215, 96, 0.15);
+}
+.notice.error {
+  background: rgba(241, 94, 108, 0.18);
+}
+
+/* Чарга */
+.queue {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 2px;
+  border-top: 1px solid var(--line);
+}
+.row:first-child {
+  border-top: 0;
+}
+.row-index {
+  width: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.row-text {
+  flex: 1;
+  min-width: 0;
+}
+.row-title,
+.row-artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.row-artist {
+  color: var(--muted);
+  font-size: 12px;
+}
+.row-time {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.context .row {
+  opacity: 0.75;
+}
+
+.text-btn {
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Налады */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.field span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input,
+select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+input:focus,
+select:focus {
+  outline: 1px solid var(--green);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.check input {
+  width: auto;
+}
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: #000;
+  font-weight: 600;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--muted);
+}
+.status.connected {
+  color: var(--green);
+}
+.status.auth-failed {
+  color: var(--danger);
+}
+
+.copy-row {
+  display: flex;
+  gap: 6px;
+}
+
+.meters {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.meters li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.meters li.selected .meter-name {
+  color: var(--green);
+  font-weight: 600;
+}
+.meter-name {
+  width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.meter {
+  flex: 1;
+  height: 6px;
+  background: var(--panel-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+/* Праверка */
+/* «Праверка»: радкі «назва — значэнне», без фону і рамак. */
+.kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.kv-label {
+  color: var(--muted);
+}
+.kv-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.kv-value.muted {
+  color: var(--muted);
+}
+/* Запіс стрыму без музыкі: прычыны і крокі «Наладзіць». */
+.vod-reasons {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.vod-reasons li {
+  margin: 3px 0;
+}
+.vod-confirm {
+  margin-top: 8px;
+}
+
+/* Кнопкі плэера з рэгулятарам гучнасці справа (як у Spotify). */
+.controls.with-volume {
+  justify-content: flex-start;
+  align-items: center;
+}
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 80px;
+  max-width: 150px;
+  margin-left: auto;
+}
+.volume input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  outline: none;
+  background: linear-gradient(to right, var(--text) var(--v), var(--panel-2) var(--v));
+  cursor: pointer;
+}
+.volume:hover input[type='range']:not(:disabled) {
+  background: linear-gradient(to right, var(--green) var(--v), var(--panel-2) var(--v));
+}
+.volume input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.volume:hover input[type='range']:not(:disabled)::-webkit-slider-thumb,
+.volume input[type='range']:focus-visible::-webkit-slider-thumb {
+  opacity: 1;
+}
+.volume input[type='range']:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Код для twitch.tv/activate: буйна, каб лёгка параўнаць з кодам на старонцы Twitch. */
+.device-code {
+  font: 700 22px/1.2 Consolas, monospace;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  user-select: all;
+}
+
+/* «+ Тэставая замова» — для праверак, таму непрыкметная. */
+.test-btn {
+  opacity: 0.45;
+  transition: opacity 0.12s;
+}
+.test-btn:hover,
+.test-btn:focus-visible {
+  opacity: 1;
+}
+
+/* Значок крыніцы (Spotify / YouTube) перад назвай песні або відэа. */
+.source {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-right: 6px;
+}
+
+/* Паўзунок у наладах (гучнасць відэа). */
+.field input.range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  margin: 8px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  outline: none;
+  background: linear-gradient(to right, var(--green) var(--v), var(--panel-2) var(--v));
+  cursor: pointer;
+}
+.field input.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+/* Кнопка «+» і галачка «ужо ў Любімых» — аднаго памеру, а радок назвы — пастаяннай вышыні (і ў відэа, дзе кнопкі няма):
+   пры змене песні Spotify спачатку не ведае, ці песня ў «Любімых», — без гэтага плэер скакаў на 6 px. */
+.now-head {
+  min-height: 28px;
+}
+.icon-btn.like {
+  width: 28px;
+  height: 28px;
+}

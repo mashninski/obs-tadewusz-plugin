@@ -1,0 +1,307 @@
+// Музыка ў доку: налады замоў і відэа, падключэнне Spotify.
+
+import { useState } from 'preact/hooks';
+import type { RequestRules } from '../../core/rules';
+import { safeLocalStorage, SIMULATED_AUDIO } from '../../core/settings';
+import { t, type MessageKey } from '../../i18n';
+import { readLoginResult } from '../../providers/spotify/auth';
+import type { SpotifyInfo } from '../../providers/spotify/sync';
+import { useStore } from '../shared/hooks';
+import { clock } from '../shared/leader';
+import { isClientId, type DockController } from './controller';
+import { Section } from './Section';
+
+/** Налады музыкі: правілы замоў, відэа YouTube і крыніца гуку для хвалі. */
+export function MusicSettings({ controller }: { controller: DockController }) {
+  const settings = useStore(controller.settings);
+  const setRules = (patch: Partial<RequestRules>) =>
+    controller.updateSettings((s) => ({ ...s, rules: { ...s.rules, ...patch } }));
+
+  return (
+    <div class="settings">
+      <Section title={t('settings.rules')} help={t('settings.rules.help')}>
+        <NumberField label={t('settings.rules.price')} value={settings.rules.price} step={50} onChange={(price) => setRules({ price })} />
+        <NumberField
+          label={t('settings.rules.maxDuration')}
+          value={settings.rules.maxDurationMin}
+          onChange={(maxDurationMin) => setRules({ maxDurationMin })}
+        />
+        <NumberField
+          label={t('settings.rules.maxPerUser')}
+          value={settings.rules.maxPerUser}
+          onChange={(maxPerUser) => setRules({ maxPerUser })}
+        />
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={settings.rules.allowExplicit}
+            onChange={(e) => setRules({ allowExplicit: e.currentTarget.checked })}
+          />
+          <span>{t('settings.rules.allowExplicit')}</span>
+        </label>
+      </Section>
+
+      <VideoSection controller={controller} />
+
+      <AudioSection controller={controller} />
+    </div>
+  );
+}
+
+/** Відэа з YouTube: кошт і даўжыня замовы, гучнасць, гук для хвалі. */
+function VideoSection({ controller }: { controller: DockController }) {
+  const settings = useStore(controller.settings);
+  const youtube = useStore(controller.youtube);
+  const meters = useStore(controller.meters);
+  const obsStatus = useStore(controller.obs).status;
+  const { volume, audioSource } = settings.video;
+  const setRules = (patch: Partial<RequestRules>) => controller.updateSettings((s) => ({ ...s, rules: { ...s.rules, ...patch } }));
+  const setVideo = (patch: Partial<typeof settings.video>) => controller.updateSettings((s) => ({ ...s, video: { ...s.video, ...patch } }));
+  const names = Object.keys(meters);
+  if (audioSource && !names.includes(audioSource)) names.unshift(audioSource);
+
+  let status = '';
+  let tone = 'muted';
+  if (obsStatus === 'connected' && !audioSource) {
+    if (youtube.overlaySource && youtube.overlayAudio) {
+      status = t('settings.video.audio.found', { name: youtube.overlaySource });
+      tone = 'good';
+    } else if (youtube.overlaySource) status = t('settings.video.audio.noAudio', { name: youtube.overlaySource });
+    else status = t('settings.video.audio.notFound');
+  }
+
+  return (
+    <Section title={t('settings.video')} help={t('settings.video.help')}>
+      <NumberField label={t('settings.video.price')} value={settings.rules.videoPrice} step={50} onChange={(videoPrice) => setRules({ videoPrice })} />
+      <NumberField
+        label={t('settings.video.maxDuration')}
+        value={settings.rules.videoMaxDurationMin}
+        onChange={(videoMaxDurationMin) => setRules({ videoMaxDurationMin })}
+      />
+      <label class="field">
+        <span>
+          {t('settings.video.volume')} — {volume}%
+        </span>
+        <input
+          class="range"
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={volume}
+          style={{ '--v': `${volume}%` }}
+          onInput={(e) => setVideo({ volume: Number(e.currentTarget.value) })}
+        />
+      </label>
+      <label class="field">
+        <span>{t('settings.video.audio')}</span>
+        <select value={audioSource} onChange={(e) => setVideo({ audioSource: e.currentTarget.value })}>
+          <option value="">{t('settings.video.audio.auto')}</option>
+          {names.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {status && <p class={`small ${tone}`}>{status}</p>}
+      <div class="field">
+        <span>{t('settings.video.account')}</span>
+        <div class="row-actions">
+          <button class="btn" onClick={controller.signInYouTube}>
+            {t('settings.video.signIn')}
+          </button>
+        </div>
+        <p class={`small ${youtube.ads ? 'bad' : 'muted'}`}>
+          {youtube.ads ? t('settings.video.adsSeen', { n: youtube.ads }) : t('settings.video.signIn.hint')}
+        </p>
+      </div>
+      <label class="check">
+        <input type="checkbox" checked={settings.video.skipAds} onChange={(e) => setVideo({ skipAds: e.currentTarget.checked })} />
+        <span>{t('settings.video.skipAds')}</span>
+      </label>
+    </Section>
+  );
+}
+
+function AudioSection({ controller }: { controller: DockController }) {
+  const settings = useStore(controller.settings);
+  const meters = useStore(controller.meters);
+  const obsStatus = useStore(controller.obs).status;
+  const names = Object.keys(meters);
+  const selected = settings.audioSource;
+  // Выбраная крыніца застаецца ў спісе, нават калі OBS пра яе зараз не паведамляе.
+  if (selected && selected !== SIMULATED_AUDIO && !names.includes(selected)) names.unshift(selected);
+
+  return (
+    <Section title={t('settings.audio')} help={t('settings.audio.help')}>
+      <label class="field">
+        <span>{t('settings.audio.source')}</span>
+        <select
+          value={selected}
+          onChange={(e) => controller.updateSettings((s) => ({ ...s, audioSource: e.currentTarget.value }))}
+        >
+          <option value="">{t('settings.audio.none')}</option>
+          <option value={SIMULATED_AUDIO}>{t('settings.audio.simulated')}</option>
+          {names.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {names.length > 0 ? (
+        <ul class="meters">
+          {names.map((name) => (
+            <li key={name} class={name === selected ? 'selected' : ''}>
+              <span class="meter-name">{name}</span>
+              <span class="meter">
+                <span class="meter-fill" style={{ width: `${(meters[name] ?? 0) * 100}%` }} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="muted small">
+          {obsStatus === 'connected' ? t('settings.audio.waiting') : t('settings.audio.connectFirst')}
+        </p>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Лікавае поле. Пакуль стрымер піша, тэкст трымаецца ў самім полі (`draft`): док часта перамалёўваецца
+ * (узровень гуку ~20 разоў/с), і без гэтага поле вярталася б да старога значэння. Захоўваецца па Enter або пры выхадзе з поля.
+ */
+function NumberField({ label, value, step = 1, onChange }: { label: string; value: number; step?: number; onChange: (v: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const n = Number(draft);
+    if (Number.isInteger(n) && n > 0 && n !== value) onChange(n);
+    setDraft(null);
+  };
+  return (
+    <label class="field">
+      <span>{label}</span>
+      <input
+        type="number"
+        // Аснова кроку — мінімум: з крокам 50 стрэлкі даюць 50, 100, 150…
+        min={step > 1 ? step : 1}
+        step={step}
+        value={draft ?? String(value)}
+        onInput={(e) => setDraft(e.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && commit()}
+        // Стрэлкі і кола мышы — адразу захаваць новае значэнне.
+        onChange={(e) => {
+          if (document.activeElement !== e.currentTarget) return;
+          const n = Number(e.currentTarget.value);
+          if (Number.isInteger(n) && n > 0) onChange(n);
+        }}
+      />
+    </label>
+  );
+}
+
+/** Падключэнне Spotify: Client ID, адрас вяртання, уваход, стан. */
+export function SpotifyConnection({ controller }: { controller: DockController }) {
+  const clientId = useStore(controller.settings).spotify.clientId;
+  const info = useStore(controller.spotify);
+  const connected = info.status !== 'off';
+  const login = connected ? null : readLoginResult(safeLocalStorage());
+
+  return (
+    <Section title={t('settings.spotify')} help={t('settings.spotify.help')}>
+      {connected ? (
+        <>
+          <p class={`small ${info.status === 'ok' ? 'good' : info.status === 'connecting' ? '' : 'bad'}`}>{spotifyStatusText(info)}</p>
+          {info.status === 'ok' && (
+            <p class={`small ${info.problem ? 'bad' : 'muted'}`}>
+              {info.problem
+                ? t(`settings.spotify.problem.${info.problem}`)
+                : info.device
+                  ? t('settings.spotify.device', { device: info.device })
+                  : t('settings.spotify.noDevice')}
+            </p>
+          )}
+          <div class="row-actions">
+            <button class="btn" onClick={controller.disconnectSpotify}>
+              {t('settings.spotify.disconnect')}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <label class="field">
+            <span>{t('settings.spotify.clientId')}</span>
+            <input
+              value={clientId}
+              spellcheck={false}
+              autocomplete="off"
+              onInput={(e) => {
+                const value = e.currentTarget.value.trim();
+                controller.updateSettings((s) => ({ ...s, spotify: { ...s.spotify, clientId: value } }));
+              }}
+            />
+          </label>
+          {clientId && !isClientId(clientId) && <p class="small bad">{t('settings.spotify.badClientId')}</p>}
+          <div class="field">
+            <span>{t('settings.spotify.redirect')}</span>
+            <CopyRow value={controller.spotifyRedirectUri} />
+          </div>
+          <div class="row-actions">
+            <button class="btn primary" disabled={!isClientId(clientId)} onClick={() => void controller.connectSpotify()}>
+              {t('settings.spotify.connect')}
+            </button>
+          </div>
+          {login && !login.ok && <p class="small bad">{loginErrorText(login.error ?? '')}</p>}
+        </>
+      )}
+    </Section>
+  );
+}
+
+function spotifyStatusText(info: SpotifyInfo): string {
+  switch (info.status) {
+    case 'connecting':
+      return t('settings.spotify.connecting');
+    case 'limited':
+      return t('settings.spotify.limited', { time: clock(info.limitedUntil) });
+    case 'error':
+      return t(`settings.spotify.problem.${info.problem || 'other'}`);
+    default:
+      return info.user ? t('settings.spotify.connected', { user: info.user }) : t('settings.spotify.connectedNoName');
+  }
+}
+
+const LOGIN_ERRORS = ['expired', 'access_denied', 'invalid_client', 'state'] as const;
+
+function loginErrorText(code: string): string {
+  return (LOGIN_ERRORS as readonly string[]).includes(code)
+    ? t(`settings.spotify.error.${code}` as MessageKey)
+    : t('settings.spotify.error.other', { code });
+}
+
+/** Поле толькі для чытання з кнопкай «Капіяваць». */
+export function CopyRow({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Калі буфер абмену недаступны, адрас можна выдзеліць у полі і скапіяваць Ctrl+C.
+    }
+  };
+  return (
+    <div class="copy-row">
+      <input readOnly value={value} onFocus={(e) => e.currentTarget.select()} />
+      <button class="btn" onClick={copy}>
+        {copied ? t('settings.overlay.copied') : t('settings.overlay.copy')}
+      </button>
+    </div>
+  );
+}

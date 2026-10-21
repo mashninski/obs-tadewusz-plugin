@@ -1,0 +1,102 @@
+// Налады музыкі. Захоўваюцца ў localStorage браўзера OBS; падключэнні OBS і Twitch — у ядры праграмы.
+
+import { DEFAULT_RULES, type RequestRules } from './rules';
+
+/** Спецыяльнае значэнне крыніцы гуку: штучны ўзровень для праверкі без OBS. */
+export const SIMULATED_AUDIO = '__simulated__';
+
+export interface Settings {
+  /** Назва крыніцы OBS, па якой рэагуе waveline; пуста — не выбрана. */
+  audioSource: string;
+  rules: RequestRules;
+  spotify: {
+    /** Client ID прыкладання, якое стрымер стварыў у Spotify Dashboard. Не сакрэт. */
+    clientId: string;
+  };
+  /** Відэа YouTube. */
+  video: {
+    /** Гучнасць плэера ў оверлэі, 0…100. */
+    volume: number;
+    /** Крыніца OBS з гукам відэа для хвалі (Browser Source оверлэя); пуста — знайсці самому. */
+    audioSource: string;
+    /** YouTube уключыў рэкламу перад відэа — відэа не паказваецца, замова адмяняецца з вяртаннем балаў. */
+    skipAds: boolean;
+  };
+}
+
+/** Гучнасць відэа па змаўчанні: ціхэй за звычайную гучнасць Spotify. */
+export const DEFAULT_VIDEO_VOLUME = 40;
+
+export const SETTINGS_KEY = 'tadewusz-music:settings:v1';
+
+export function defaultSettings(): Settings {
+  return {
+    audioSource: '',
+    rules: { ...DEFAULT_RULES },
+    spotify: { clientId: '' },
+    video: { volume: DEFAULT_VIDEO_VOLUME, audioSource: '', skipAds: true },
+  };
+}
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+
+const pick = <T>(value: unknown, fallback: T): T => (typeof value === typeof fallback ? (value as T) : fallback);
+
+/** Чытае налады. Сапсаваныя або адсутныя палі замяняюцца значэннямі па змаўчанні. */
+export function loadSettings(storage: StorageLike | null): Settings {
+  const d = defaultSettings();
+  let raw: unknown;
+  try {
+    const text = storage?.getItem(SETTINGS_KEY);
+    raw = text ? JSON.parse(text) : null;
+  } catch {
+    raw = null;
+  }
+  if (typeof raw !== 'object' || raw === null) return d;
+  const r = raw as Record<string, any>;
+  const rules = typeof r.rules === 'object' && r.rules ? r.rules : {};
+  const spotify = typeof r.spotify === 'object' && r.spotify ? r.spotify : {};
+  const video = typeof r.video === 'object' && r.video ? r.video : {};
+  const volume = typeof video.volume === 'number' && video.volume >= 0 && video.volume <= 100 ? Math.round(video.volume) : d.video.volume;
+  return {
+    audioSource: pick(r.audioSource, d.audioSource),
+    rules: {
+      price: positiveInt(rules.price, d.rules.price),
+      maxDurationMin: positiveInt(rules.maxDurationMin, d.rules.maxDurationMin),
+      maxPerUser: positiveInt(rules.maxPerUser, d.rules.maxPerUser),
+      allowExplicit: pick(rules.allowExplicit, d.rules.allowExplicit),
+      videoPrice: positiveInt(rules.videoPrice, d.rules.videoPrice),
+      videoMaxDurationMin: positiveInt(rules.videoMaxDurationMin, d.rules.videoMaxDurationMin),
+    },
+    spotify: {
+      clientId: pick(spotify.clientId, d.spotify.clientId).trim(),
+    },
+    video: {
+      volume,
+      audioSource: pick(video.audioSource, d.video.audioSource),
+      skipAds: pick(video.skipAds, d.video.skipAds),
+    },
+  };
+}
+
+function positiveInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+export function saveSettings(storage: StorageLike | null, settings: Settings): boolean {
+  try {
+    storage?.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    return Boolean(storage);
+  } catch {
+    return false;
+  }
+}
+
+/** localStorage можа быць недаступны (забаронены або перапоўнены) — тады працуем без захавання. */
+export function safeLocalStorage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+}

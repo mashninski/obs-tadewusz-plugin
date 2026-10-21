@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="be">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tadewusz</title>
+<!--
+  Старонка чакання для дока і крыніц OBS. OBS можа адкрыць крыніцы раней, чым запусціцца праграма;
+  гэтая лакальная старонка чакае ядро і тады пераходзіць на патрэбную старонку.
+  Параметры: page=dock|overlay|ticker|music, port (па змаўчанні 18745); астатнія перадаюцца далей.
+-->
+<style>
+  :root { color-scheme: dark; font: 13px 'Segoe UI', sans-serif; background: #121212; color: #ddd; }
+  body { margin: 16px; }
+  html.source, html.source body { background: transparent; }
+</style>
+<p id="state" role="status">Tadewusz запускаецца…</p>
+<script>
+  const params = new URLSearchParams(location.search);
+  const page = params.get('page') || 'dock';
+  const port = /^\d{4,5}$/.test(params.get('port') || '') ? params.get('port') : '18745';
+  const paths = { dock: '/', overlay: '/overlay', ticker: '/ticker', music: '/music' };
+  params.delete('page');
+  params.delete('port');
+  const base = 'http://127.0.0.1:' + port;
+  const target = base + (paths[page] || '/') + (params.toString() ? '?' + params : '');
+  if (page !== 'dock') {
+    document.documentElement.className = 'source';
+    document.getElementById('state').hidden = true;
+  }
+  let attempts = 0;
+  async function wait() {
+    try {
+      const response = await fetch(base + '/bootstrap/ready', { cache: 'no-store' });
+      const state = await response.json();
+      if (response.ok && state.app === 'Tadewusz') return location.replace(target);
+    } catch {}
+    if (++attempts === 60) document.getElementById('state').textContent =
+      'Праграма пакуль не адказвае. Праверце, ці ўключаны скрыпт tadewusz.lua у «Інструменты → Скрыпты». Док падключыцца сам.';
+    setTimeout(wait, 500);
+  }
+  wait();
+</script>
+</html>

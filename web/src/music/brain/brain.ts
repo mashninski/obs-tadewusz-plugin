@@ -1,0 +1,1071 @@
+// «Мозг» музыкі: стан плэера і чаргі, заказы, Spotify, Twitch (праз ядро праграмы), відэа YouTube,
+// падключэнне да OBS, адпраўка стану ў оверлей.
+// Працуе толькі ў старонцы-лідары (док або оверлей). Стан піша ў агульныя сховішчы старонкі,
+// а старонка (node.ts) рассылае яго астатнім. Само відэа грае толькі ў оверлэі — мозг кіруе чаргой і Spotify.
+
+import { createEnvelopeFactory, type OverlayMessage } from '../core/messages';
+import * as q from '../core/queue';
+import * as rq from '../core/requests';
+import { checkRequest, maxDurationFor, type RejectReason } from '../core/rules';
+import { SIMULATED_AUDIO, type Settings } from '../core/settings';
+import type { Store } from '../core/store';
+import { startTicker } from '../core/ticker';
+import { isVideo, type PlayerState, type QueueItem, type SpotifyResume, type Track } from '../core/types';
+import * as vd from '../core/video';
+import { t } from '../i18n';
+import { createAutoGain, dbFromMeters, levelFromMeters, simulatedLevel } from '../obs/audio';
+import { OverlaySender } from '../obs/channel';
+import { ObsClient } from '../obs/client';
+import { EventSubscription, type InputVolumeMetersEvent } from '../obs/protocol';
+import { findOverlaySource } from '../obs/video-audio';
+import { analyzeVod, applyVodFix, planVodFix, readVodSnapshot } from '../obs/vod-track';
+import { createMockProvider, MOCK_REQUEST_TRACKS, MOCK_VIEWERS, SPOTIFY_TEST_QUERIES, type MusicProvider } from '../providers/spotify';
+import { createSpotifyApi } from '../providers/spotify/api';
+import { clearTokens, hasTokens, saveLoginResult, type FetchLike } from '../providers/spotify/auth';
+import { applyPlayback, canSave, optimisticSkip } from '../providers/spotify/map';
+import { createSpotifyWindowReader } from '../obs/spotify-window';
+import { createRequestCounter, createSpotifySync, initialSpotifyInfo, type SpotifyInfo } from '../providers/spotify/sync';
+import { createMockRequestSource, type RequestKind, type SongRequest } from '../sources/twitch';
+import { httpCore, type CoreTwitch } from '../sources/twitch/core';
+import { createTwitchLink, initialTwitchInfo, type RequestOutcome, type TwitchInfo } from '../sources/twitch/twitch';
+import { mentionsYouTube, parseYouTubeLink } from '../youtube/link';
+import { findVideo, findVideoByQuery, type FetchLike as YouTubeFetch, type VideoProbe } from '../youtube/lookup';
+import { createVideoSearch } from '../youtube/search';
+import { initialVodInfo, type ChannelInfo, type Command, type Notice, type ObsInfo, type VodInfo, type YouTubeInfo } from './bus';
+import { loadPlayer, savePlayer } from './persist';
+
+/** Колькі трэкаў кантэксту трымаць напагатове. */
+const CONTEXT_MIN = 5;
+/** Як часта паўтараць стан і сігнал «жывы» для оверлея (каб оверлей пасля перазагрузкі хутка атрымаў стан). */
+const HEARTBEAT_MS = 2000;
+const TICK_MS = 250;
+const SIMULATED_AUDIO_MS = 50;
+/** Як часта захоўваць стан плэера ў localStorage (і заўсёды — пры спыненні). */
+const PERSIST_MS = 1000;
+/** Як часта правяраць загаловак акна Spotify праз OBS (бясплатна — без запытаў да Spotify). */
+const WINDOW_CHECK_MS = 1000;
+/** Калі ў OBS няма крыніцы са спісам акон — правяраць радзей. */
+const WINDOW_CHECK_IDLE_MS = 10_000;
+/** Калі Spotify не прыняў заказ у чаргу — паўтарыць праз гэты час (не часцей, каб не марнаваць квоту). */
+const SEND_RETRY_MS = 5000;
+/** Як часта шукаць у OBS крыніцу з оверлэем. */
+const OVERLAY_SOURCE_CHECK_MS = 30_000;
+/** Як часта правяраць, ці не трапіць музыка ў запіс стрыму. */
+const VOD_CHECK_MS = 30_000;
+/** Відэа з мінулага запуску, пра якое плэер так даўно не паведамляў, не працягваем (OBS быў зачынены). */
+const VIDEO_STALE_ON_START_MS = 60_000;
+/** Даўжэйшы тэкст замовы для пошуку відэа абразаецца. */
+const SEARCH_QUERY_MAX = 100;
+/** Паўтор паўзы Spotify перад відэа, калі першая каманда не прайшла. */
+const PAUSE_RETRY_MS = 1500;
+/** Тэставыя відэа для «+ Тэставая замова» без Spotify. */
+const YOUTUBE_TEST_QUERIES: Pick<SongRequest, 'query' | 'kind'>[] = [
+  { query: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+  { query: 'https://youtu.be/9bZkp7q19f0' },
+  { query: 'https://youtu.be/kJQP7kiw5Fk' },
+  // Па назве — як ва ўзнагародзе відэа.
+  { query: 'Hollow Knight Silksong trailer', kind: 'video' },
+];
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+/** Сховішчы старонкі, у якія мозг піша свой стан. */
+export interface BrainStores {
+  settings: Store<Settings>;
+  player: Store<PlayerState>;
+  obs: Store<ObsInfo>;
+  channel: Store<ChannelInfo>;
+  meters: Store<Record<string, number>>;
+  notice: Store<Notice | null>;
+  spotify: Store<SpotifyInfo>;
+  twitch: Store<TwitchInfo>;
+  youtube: Store<YouTubeInfo>;
+  vod: Store<VodInfo>;
+}
+
+export interface BrainOptions {
+  /** Ідэнтыфікатар старонкі: з яго пачынаюцца ключы запісаў чаргі і `sid` паведамленняў оверлею. */
+  id: string;
+  storage: StorageLike | null;
+  stores: BrainStores;
+  updateSettings(update: (s: Settings) => Settings): void;
+  provider?: MusicProvider;
+  /**
+   * Тэставы плэйліст, пакуль Spotify не падключаны (толькі для тэстаў). Па змаўчанні без Spotify нічога не грае,
+   * каб на стрыме не з'явіліся выдуманыя песні.
+   */
+  demo?: boolean;
+  /** Падмена `fetch` для запытаў да Spotify (тэсты). */
+  fetch?: FetchLike;
+  /** Выклікаецца на кожную падзею ад OBS (дыягностыка схаванага дока). */
+  onObsEvent?: () => void;
+  /** Ядро праграмы: Twitch і налады OBS (тэсты — падробка). */
+  core?: CoreTwitch;
+  /** Падмена YouTube (тэсты): oEmbed, пошук праз люстэркі і схаваны плэер, які правярае відэа. */
+  youtubeFetch?: YouTubeFetch;
+  videoProbe?: VideoProbe;
+  /** Колькі плэер оверлэя можа маўчаць, пакуль відэа не лічыцца страчаным (тэсты — менш). */
+  videoSilenceMs?: number;
+  /** Колькі чакаць, пакуль плэер пачне паказваць відэа (тэсты — менш). */
+  videoStartMs?: number;
+}
+
+export function createBrain(options: BrainOptions) {
+  const { storage, stores } = options;
+  const { settings, player } = stores;
+  const provider = options.provider ?? createMockProvider();
+  const core = options.core ?? httpCore();
+  const requestSource = createMockRequestSource();
+  const sender = new OverlaySender();
+  const envelope = createEnvelopeFactory(options.id);
+  const youtubeFetch: YouTubeFetch = options.youtubeFetch ?? ((url, init) => fetch(url, init));
+  const videoSearch = createVideoSearch({ fetch: youtubeFetch });
+  /** Схаваны плэер для праверкі відэа — толькі ў браўзеры (загружаецца, калі спатрэбіцца). */
+  const videoProbe: VideoProbe =
+    options.videoProbe ??
+    (async (videoId) => {
+      if (typeof document === 'undefined') return { status: 'timeout' };
+      const { probeVideo } = await import('../youtube/probe');
+      return probeVideo(videoId);
+    });
+
+  let obs: ObsClient | null = null;
+  let windowReader: ReturnType<typeof createSpotifyWindowReader> | null = null;
+  let windowBusy = false;
+  let nextWindowCheckAt = 0;
+  /** Апошні вядомы стан акна Spotify (`null` — яшчэ не правяралі). */
+  let lastWindowKey: string | null = null;
+  let overlaySourceBusy = false;
+  let nextOverlaySourceCheckAt = 0;
+  let vodBusy = false;
+  let nextVodCheckAt = 0;
+  let keyCounter = 0;
+  let lastOverlayJson = '';
+  let lastLevel = -1;
+  let lastTickAt = Date.now();
+  let lastHeartbeatAt = 0;
+  let lastPersistAt = 0;
+  let refilling = false;
+  /** Заказ, які зараз адпраўляецца ў Spotify (ключ), і калі можна паспрабаваць зноў пасля няўдачы. */
+  let sendingKey: string | null = null;
+  let nextSendAt = 0;
+  let testQueryIndex = 0;
+  /** Аўтаўзмацненне хвалі для кожнай крыніцы гуку (музыка і відэа — асобна). */
+  const autoGains = new Map<string, ReturnType<typeof createAutoGain>>();
+  let running = false;
+  /** Песні мяняе Spotify (ёсць токены), а не ўнутраны таймер. */
+  let spotifyMode = false;
+  /** Стан ужо загружаны або створаны — толькі тады яго можна захоўваць (інакш перазапішам чаргу пустой). */
+  let loaded = false;
+  const stopFns: (() => void)[] = [];
+
+  // --- Spotify ---
+
+  const counter = createRequestCounter(storage);
+  const api = createSpotifyApi({
+    storage,
+    fetch: options.fetch,
+    onRequest: () => {
+      const n = counter.add();
+      stores.spotify.set((s) => ({ ...s, requestsToday: n }));
+    },
+  });
+  const spotify = createSpotifySync({
+    api,
+    onPlayback: (playback, queue) => {
+      if (!spotifyMode) return;
+      // Падчас відэа Spotify на паўзе і бягучую песню не мяняе.
+      if (vd.currentVideo(player.get())) {
+        const video = player.get().video!;
+        if (!playback?.isPlaying) {
+          if (!video.spotifyPaused) player.set((s) => (s.video ? { ...s, video: { ...s.video, spotifyPaused: true } } : s));
+          return;
+        }
+        // Паўза ўжо была, а Spotify зноў грае — стрымер сам уключыў музыку: відэа спыняецца, гук не накладваецца.
+        if (!video.spotifyPaused) return;
+        finishVideo('streamer');
+      }
+      const before = player.get();
+      player.set((s) => applyPlayback(s, playback, queue));
+      skipRemovedRequest();
+      // Spotify перайшоў да плэйліста, а першае ў чарзе — відэа: паўза і відэа адразу.
+      const missedVideo = vd.missedVideo(before, player.get());
+      if (missedVideo) return startVideoNow(missedVideo.key, 'restart', true);
+      // Spotify перайшоў да плэйліста, а заказ не паспеў трапіць у Spotify — уключаем заказ адразу.
+      const missed = rq.missedRequest(before, player.get());
+      if (missed) playRequestNow(missed.key);
+    },
+    onInfo: (patch) => stores.spotify.set((s) => ({ ...s, ...patch })),
+    onNotice: (n, kind) => showNotice(t(`spotify.notice.${n}`), kind),
+    onLoggedOut: () => {
+      // Уваход састарэў (6 месяцаў) або Spotify яго адклікаў — док папросіць падключыцца зноў.
+      clearTokens(storage);
+      saveLoginResult(storage, { ok: false, error: 'expired', at: Date.now() });
+      leaveSpotify();
+    },
+  });
+
+  // --- Twitch ---
+
+  const twitch = createTwitchLink({
+    storage,
+    core,
+    price: (kind) => (kind === 'video' ? settings.get().rules.videoPrice : settings.get().rules.price),
+    readiness: (kind) => {
+      // Відэа не залежаць ад Spotify: граюць і без яго.
+      if (kind === 'video') return 'ready';
+      if (!spotifyMode) return hasTokens(storage) ? 'wait' : 'off';
+      const status = stores.spotify.get().status;
+      return status === 'ok' ? 'ready' : status === 'connecting' ? 'wait' : 'off';
+    },
+    onRedemption: (r) => processRequest({ user: r.user, query: r.query, redemptionId: r.id, kind: r.kind }),
+    player: () => player.get(),
+    onInfo: (patch) => stores.twitch.set((s) => ({ ...s, ...patch })),
+    onLoggedOut: () => stores.twitch.set(initialTwitchInfo('off')),
+  });
+
+  /** Ці ёсць у ядры ўваход у Twitch: калі з'явіўся — падключаем узнагароды музыкі, знік — спыняем. */
+  let twitchChecking = false;
+  function checkTwitch(): void {
+    if (twitchChecking) return;
+    twitchChecking = true;
+    void core
+      .identity()
+      .then((v) => v.connected, () => null)
+      .then((connected) => {
+        if (!running || connected === null) return;
+        if (connected && !twitch.running) twitch.start();
+        else if (!connected && twitch.running) twitch.stop();
+      })
+      .finally(() => {
+        twitchChecking = false;
+      });
+  }
+
+  /** Запіс можна паказаць пры Spotify: песня Spotify (з URI) або відэа YouTube. */
+  const playable = (item: QueueItem | null | undefined) => Boolean(item && (item.track.uri || isVideo(item.track)));
+
+  function enterSpotify(): void {
+    spotifyMode = true;
+    // Тэставыя трэкі (без Spotify URI) у Spotify не адправіш — прыбіраем іх. Відэа застаюцца.
+    player.set((s) => {
+      const current = playable(s.current) ? s.current : null;
+      return {
+        ...s,
+        current,
+        isPlaying: Boolean(current) && s.isPlaying,
+        requests: s.requests.filter(playable),
+        context: s.context.filter((c) => c.track.uri),
+        history: [],
+        video: current && s.video?.key === current.key ? s.video : null,
+      };
+    });
+    spotify.start();
+  }
+
+  function leaveSpotify(): void {
+    spotifyMode = false;
+    spotify.stop();
+    stores.spotify.set({ ...initialSpotifyInfo('off'), requestsToday: counter.get() });
+    // Відэа, якое грае, Spotify не тычыцца — застаецца.
+    player.set((s) => {
+      const video = vd.currentVideo(s);
+      return video
+        ? { ...s, context: [], history: [], requests: s.requests.filter(playable), video: s.video ? { ...s.video, resume: 'none' } : null }
+        : { ...s, current: null, isPlaying: false, progressMs: 0, context: [], history: [], requests: s.requests.filter(playable), video: null };
+    });
+  }
+
+  /** Токены з'явіліся (уваход на старонцы вяртання) або зніклі — пераключаем рэжым. */
+  function checkSpotify(): void {
+    const connected = hasTokens(storage);
+    if (connected && !spotifyMode) enterSpotify();
+    else if (!connected && spotifyMode) leaveSpotify();
+  }
+
+  // Ключ запісу павінен быць унікальны і пасля змены лідара, таму ў ім ідэнтыфікатар старонкі.
+  const makeItem = (track: Track, requestedBy?: string, redemptionId?: string): QueueItem => ({
+    key: `${track.id}#${options.id}-${++keyCounter}`,
+    track,
+    ...(requestedBy ? { requestedBy } : {}),
+    ...(redemptionId ? { redemptionId } : {}),
+  });
+
+  function send(msg: OverlayMessage): void {
+    sender.send(envelope(msg));
+  }
+
+  function sendState(force = false): void {
+    const state = q.toOverlayState(player.get());
+    const json = JSON.stringify(state);
+    if (!force && json === lastOverlayJson) return;
+    lastOverlayJson = json;
+    send({ type: 'state', state });
+  }
+
+  function sendLevel(level: number): void {
+    if (Math.abs(level - lastLevel) < 0.004) return;
+    lastLevel = level;
+    send({ type: 'level', level });
+  }
+
+  function updateChannel(): void {
+    stores.channel.set({ mode: sender.mode, ...sender.stats });
+  }
+
+  function showNotice(text: string, kind: Notice['kind'] = 'ok'): void {
+    stores.notice.set({ id: Date.now(), text, kind });
+  }
+
+  function persist(): void {
+    if (!loaded) return;
+    lastPersistAt = Date.now();
+    savePlayer(storage, player.get(), lastPersistAt);
+  }
+
+  async function refillContext(): Promise<void> {
+    if (refilling || player.get().context.length >= CONTEXT_MIN) return;
+    refilling = true;
+    try {
+      const tracks = await provider.nextContextTracks(CONTEXT_MIN - player.get().context.length);
+      if (running && !spotifyMode) player.set((s) => q.appendContext(s, tracks.map((tr) => makeItem(tr))));
+    } finally {
+      refilling = false;
+    }
+  }
+
+  /**
+   * Першы заказ — у чаргу Spotify незадоўга да канца бягучай песні. Адзнака «адпраўлены» захоўваецца
+   * ў localStorage да запыту: калі лідар знікне пасярэдзіне, новы лідар заказ не задвоіць (а калі запыт
+   * так і не дайшоў, зверка з чаргой Spotify адправіць яго нанова).
+   */
+  function sendNextRequest(now: number): void {
+    if (sendingKey || now < nextSendAt) return;
+    const item = rq.requestToSend(player.get());
+    if (!item?.track.uri) return;
+    player.set((s) => rq.markSent(s, item.key, now));
+    persist();
+    sendingKey = item.key;
+    void spotify.enqueue(item.track.uri).then((ok) => {
+      sendingKey = null;
+      if (ok || !running) return;
+      nextSendAt = Date.now() + SEND_RETRY_MS;
+      player.set((s) => rq.unmarkSent(s, item.key, now));
+    });
+  }
+
+  /** Выдалены заказ, які ўжо быў у чарзе Spotify, пачаў граць — адразу пераключаем на наступную. */
+  function skipRemovedRequest(): void {
+    const s = player.get();
+    if (!s.skip || s.current?.track.uri !== s.skip.uri) return;
+    player.set((st) => ({ ...st, skip: null }));
+    void spotify.command('next');
+  }
+
+  /** Вярнуць заказы, як былі, калі Spotify не паслухаўся (тыя, што яшчэ ёсць), песню скажа апытанне. */
+  function restoreRequests(before: PlayerState, key: string): void {
+    player.set((s) => {
+      const keys = new Set([...s.requests.map((r) => r.key), key]);
+      const extra = s.requests.filter((r) => !before.requests.some((b) => b.key === r.key));
+      return { ...s, requests: [...before.requests.filter((r) => keys.has(r.key)), ...extra] };
+    });
+    spotify.nudge();
+  }
+
+  /** Заказ пачынае граць зараз: у Spotify — праз чаргу і «наступная». Відэа — у оверлэі. */
+  function playRequestNow(key: string): void {
+    const before = player.get();
+    const item = before.requests.find((r) => r.key === key);
+    if (!item) return;
+    if (vd.currentVideo(before)) return finishVideo('next', key);
+    if (isVideo(item.track)) return startVideoNow(key, 'next');
+    if (!item.track.uri) return;
+    const skips = rq.skipsToReach(before, key);
+    const enqueue = item.sentAt === undefined;
+    player.set((s) => rq.startRequest(s, key));
+    persist();
+    void spotify.playUri(item.track.uri, { enqueue, skips }).then((ok) => {
+      if (!ok && running) restoreRequests(before, key);
+    });
+  }
+
+  // --- Відэа YouTube ---
+
+  /**
+   * Відэа становіцца бягучым: Spotify — на паўзу (калі грае). Плэер у оверлэі ўбачыць новае відэа ў стане
+   * і пачне яго. `resume` — як працягнуць Spotify пасля відэа.
+   */
+  function startVideoNow(key: string, resume: SpotifyResume, pauseNow = false): void {
+    const before = player.get();
+    const wasVideo = vd.currentVideo(before);
+    const spotifyPlaying = spotifyMode && !wasVideo && before.isPlaying && Boolean(before.current?.track.uri);
+    // Ланцужок відэа захоўвае, як працягнуць Spotify пасля апошняга; без музыкі Spotify не чапаем.
+    const mode: SpotifyResume = !spotifyMode ? 'none' : wasVideo ? (before.video?.resume ?? 'none') : spotifyPlaying ? resume : 'none';
+    let state = before;
+    if (wasVideo) state = vd.endVideo(state)?.state ?? state;
+    state = vd.startVideo(state, key, mode, Date.now());
+    if (!vd.currentVideo(state)) return;
+    // Песня і так скончылася (або Spotify ужо пачаў новую) — паўза адразу. ▶ / «Наступная» — музыка грае,
+    // пакуль оверлэй рыхтуе відэа (некалькі секунд), і становіцца на паўзу, калі відэа з’явіцца.
+    const pending = spotifyPlaying && !pauseNow;
+    if (pending && state.video) state = { ...state, video: { ...state.video, pausePending: true } };
+    player.set(state);
+    persist();
+    if (spotifyPlaying && !pending) pauseForVideo();
+  }
+
+  /** Відэа з’явілася (або чакаць больш нельга) — цяпер Spotify на паўзу. */
+  function releasePendingPause(): void {
+    const s = player.get();
+    if (!s.video?.pausePending) return;
+    player.set({ ...s, video: { ...s.video, pausePending: false } });
+    pauseForVideo();
+  }
+
+  function pauseForVideo(retry = true): void {
+    void spotify.command('pause').then((ok) => {
+      if (ok || !running || !retry) return;
+      setTimeout(() => {
+        if (running && vd.currentVideo(player.get())) pauseForVideo(false);
+      }, PAUSE_RETRY_MS);
+    });
+  }
+
+  /**
+   * Відэа скончылася або яго спынілі. `playKey` — замова, якую ўключыць замест наступнай (▶ у доку).
+   * Відэа, якое так і не пачало паказвацца (памылка, оверлэя няма), — балы гледачу вяртаюцца.
+   */
+  function finishVideo(
+    reason: 'ended' | 'next' | 'failed' | 'stalled' | 'not-started' | 'streamer' | 'ad',
+    playKey?: string,
+    code?: number,
+  ): void {
+    const before = player.get();
+    const video = vd.currentVideo(before);
+    if (!video || !before.video) return;
+    if (reason === 'failed' || reason === 'stalled' || reason === 'not-started') {
+      if (!before.video.started && video.redemptionId) twitch.failed(video.redemptionId, video.track.title);
+      // Дакладная прычына — у доку і на «Стане»: так відаць, што здарылася.
+      const text =
+        reason === 'failed'
+          ? t('player.videoFailed.error', { title: video.track.title, code: code ?? 0 })
+          : t(`player.videoFailed.${reason}`, { title: video.track.title });
+      showNotice(text, 'error');
+      stores.youtube.set((s) => ({ ...s, lastError: text, lastErrorAt: Date.now() }));
+    } else if (reason === 'ad') {
+      // Рэкламу на стрым не пускаем: відэа спынена, гледачу — балы назад.
+      if (!before.video.started && video.redemptionId) twitch.failed(video.redemptionId, video.track.title, 'video-ad');
+      showNotice(t('player.videoAd', { title: video.track.title }), 'error');
+    }
+    // Spotify яшчэ не паспеў стаць на паўзу (відэа рыхтавалася) — музыка грае далей, нічога не пераключаем.
+    const ended = vd.endVideo(before.video.pausePending ? { ...before, video: { ...before.video, resume: 'none' } } : before);
+    if (!ended) return;
+    if (reason === 'streamer') {
+      // Spotify ужо грае — песню скажа гэтае ж апытанне.
+      player.set(ended.state);
+      persist();
+      return;
+    }
+    let next = ended.next;
+    const chosen = playKey ? ended.state.requests.find((r) => r.key === playKey) : null;
+    if (chosen) {
+      next = isVideo(chosen.track)
+        ? { kind: 'video', key: chosen.key, resume: before.video.resume }
+        : { kind: 'request', key: chosen.key, resume: before.video.resume === 'none' ? 'next' : before.video.resume };
+    }
+    afterVideo(ended.state, next);
+    persist();
+  }
+
+  /**
+   * Што грае пасля відэа: наступнае відэа, замова песні або музыка стрымера. Новы стан ставіцца адным крокам:
+   * оверлэй не павінен убачыць паміж відэа і наступным «нічога не грае» (палоска мігнула б).
+   */
+  function afterVideo(base: PlayerState, next: vd.AfterVideo): void {
+    if (next.kind === 'video') {
+      const state = vd.startVideo(base, next.key, spotifyMode ? next.resume : 'none', Date.now());
+      return player.set(state);
+    }
+    if (!spotifyMode) {
+      // Без Spotify (тэсты) — як раней: наступны запіс з чаргі.
+      const moved = next.kind === 'request' ? q.playNow(base, next.key) : q.skipNext(base);
+      return player.set(moved.current ? { ...moved, isPlaying: true } : moved);
+    }
+    if (next.kind === 'request') {
+      const item = base.requests.find((r) => r.key === next.key);
+      if (!item?.track.uri) return player.set(base);
+      const enqueue = item.sentAt === undefined;
+      player.set(rq.startRequest(base, next.key));
+      void spotify.resume({ uri: item.track.uri, enqueue, skips: 1 }).then((ok) => {
+        if (!ok && running) restoreRequests(base, next.key);
+      });
+      return;
+    }
+    if (next.resume === 'none') {
+      player.set(base);
+      return spotify.nudge();
+    }
+    player.set(vd.resumeContext(base));
+    void spotify.resume(next.resume === 'restart' ? { restart: true } : { skips: 1 }).then((ok) => {
+      if (!ok) spotify.nudge();
+    });
+  }
+
+  /** Оверлэі, якія паведамлялі пра сябе: id → ці з гукам, версія, калі. */
+  const overlays = new Map<string, { owner: boolean; version: string; at: number }>();
+  const OVERLAY_ALIVE_MS = 15_000;
+
+  function onOverlayStatus(id: string, owner: boolean, version: string): void {
+    const now = Date.now();
+    overlays.set(id, { owner, version, at: now });
+    updateOverlays(now);
+  }
+
+  function updateOverlays(now: number): void {
+    for (const [id, o] of overlays) if (now - o.at > OVERLAY_ALIVE_MS) overlays.delete(id);
+    const list = [...overlays.values()];
+    const patch = {
+      overlays: list.length,
+      soundOverlays: list.filter((o) => o.owner).length,
+      overlayVersions: [...new Set(list.map((o) => o.version))].sort().join(', '),
+    };
+    const info = stores.youtube.get();
+    if (info.overlays !== patch.overlays || info.soundOverlays !== patch.soundOverlays || info.overlayVersions !== patch.overlayVersions) {
+      stores.youtube.set((s) => ({ ...s, ...patch }));
+    }
+  }
+
+  /**
+   * Нічога не грае (Spotify не падключаны, закрыты або ў ім нічога няма), а першае ў чарзе — відэа: яно пачынаецца само.
+   * Калі стрымер сам паставіў музыку на паўзу — відэа чакае ▶ або «Наступная» ў доку.
+   */
+  function idleVideo(): boolean {
+    const s = player.get();
+    const first = s.requests[0];
+    if (!first || !isVideo(first.track) || s.current || vd.currentVideo(s)) return false;
+    // Са Spotify — толькі калі ён ужо адказаў (інакш можам пачаць відэа паверх музыкі, пра якую яшчэ не ведаем).
+    return !spotifyMode || stores.spotify.get().status === 'ok';
+  }
+
+  /** Паведамленне плэера оверлэя: ход відэа, канец, памылка. */
+  function onVideoReport(report: vd.VideoReport): void {
+    const now = Date.now();
+    if (now - stores.youtube.get().playerSeenAt >= 1000) stores.youtube.set((s) => ({ ...s, playerSeenAt: now }));
+    if (!report.key) return;
+    const result = vd.applyReport(player.get(), report, now);
+    if (result.state !== player.get()) player.set(result.state);
+    if (result.state.video?.ready && result.state.video.pausePending) releasePendingPause();
+    if (result.ad) {
+      if (now - stores.youtube.get().lastAdAt > 2000) stores.youtube.set((s) => ({ ...s, ads: s.ads + 1, lastAdAt: now }));
+      if (settings.get().video.skipAds) finishVideo('ad');
+      return;
+    }
+    if (result.ended) finishVideo('ended');
+    else if (result.failed) finishVideo('failed', undefined, report.code);
+  }
+
+  /** Відэа з мінулага запуску або ад папярэдняга лідара: стан відэа павінен быць, а даўно забытае відэа — не працягваем. */
+  function resumeSavedVideo(): void {
+    const s = player.get();
+    if (!s.current || !isVideo(s.current.track)) return;
+    const now = Date.now();
+    if (!s.video || s.video.key !== s.current.key) {
+      player.set({
+        ...s,
+        video: { key: s.current.key, resume: 'next', startedAt: now, reportAt: 0, seek: 0, spotifyPaused: false, started: false, ready: false, pausePending: false },
+      });
+      return;
+    }
+    if (now - Math.max(s.video.startedAt, s.video.reportAt) < VIDEO_STALE_ON_START_MS) return;
+    // OBS быў зачынены: відэа ў гісторыю, Spotify не чапаем (стрымер уключыць музыку сам).
+    if (!s.video.started && s.current.redemptionId) twitch.failed(s.current.redemptionId, s.current.track.title);
+    const ended = vd.endVideo(s);
+    if (ended) player.set(ended.state);
+  }
+
+  function onTick(): void {
+    const now = Date.now();
+    const delta = now - lastTickAt;
+    lastTickAt = now;
+    const video = vd.currentVideo(player.get());
+    if (video) {
+      // Час відэа паміж паведамленнямі плэера (раз у секунду) лічым самі — для дока; пакуль відэа не паказана, ён не ідзе.
+      if (player.get().video?.ready) player.set((s) => q.advanceProgress(s, delta));
+      const v = player.get().video;
+      if (v?.pausePending && now - v.startedAt >= vd.PAUSE_PENDING_MAX_MS) releasePendingPause();
+      if (vd.videoStalled(player.get(), now, options.videoSilenceMs)) finishVideo('stalled');
+      else if (vd.videoNotStarting(player.get(), now, options.videoStartMs)) finishVideo('not-started');
+    }
+    if (spotifyMode) {
+      if (!video) player.set((s) => q.advanceProgress(s, delta));
+      const state = player.get();
+      const first = state.requests[0];
+      const waiting = !vd.currentVideo(state) && Boolean(first && ((first.track.uri && first.sentAt === undefined) || isVideo(first.track)));
+      spotify.setRequestWaiting(waiting);
+      // Наступнае відэа — загадзя ў оверлэі (схавана), каб яно пачалося з першага кадра без кнопак YouTube.
+      const prepare = vd.videoToPrepare(state);
+      if (prepare !== (state.videoPrepare ?? null)) player.set((s) => ({ ...s, videoPrepare: prepare }));
+      spotify.tick(now);
+      const toStart = vd.videoToStart(player.get());
+      if (toStart) startVideoNow(toStart.key, 'next', true);
+      else if (idleVideo()) startVideoNow(player.get().requests[0].key, 'none');
+      else sendNextRequest(now);
+      checkSpotifyWindow(now);
+    } else if (!video && idleVideo()) {
+      startVideoNow(player.get().requests[0].key, 'none');
+    } else if (!video) {
+      player.set((s) => q.tick(s, delta));
+      if (options.demo && player.get().context.length < CONTEXT_MIN) void refillContext();
+    }
+    if (loaded) twitch.tick(now);
+    checkOverlaySource(now);
+    checkVod(now);
+    if (overlays.size && now - lastHeartbeatAt >= HEARTBEAT_MS) updateOverlays(now);
+    if (now - lastHeartbeatAt >= HEARTBEAT_MS) {
+      lastHeartbeatAt = now;
+      checkSpotify();
+      checkTwitch();
+      if (!obs && now >= nextObsAttemptAt) void connectObs();
+      sendState(true);
+      send({ type: 'ping', at: now });
+      updateChannel();
+    }
+    if (now - lastPersistAt >= PERSIST_MS) persist();
+  }
+
+  /**
+   * Змена загалоўка акна Spotify (іншая песня, паўза, Spotify адкрыты/закрыты) — сігнал апытаць Spotify адразу,
+   * не чакаючы планавага апытання. Калі ў OBS няма патрэбнай крыніцы — проста апытанне па раскладзе.
+   */
+  function checkSpotifyWindow(now: number): void {
+    if (!windowReader || windowBusy || now < nextWindowCheckAt) return;
+    windowBusy = true;
+    const reader = windowReader;
+    void reader
+      .read()
+      .then((result) => {
+        if (reader !== windowReader || !spotifyMode) return;
+        const key = `${result.status}|${result.title ?? ''}`;
+        if (lastWindowKey !== null && key !== lastWindowKey) spotify.nudge();
+        lastWindowKey = key;
+        spotify.setWindowWatched(result.status === 'ok' || result.status === 'no-window');
+        if (stores.spotify.get().windowWatch !== result.status) stores.spotify.set((s) => ({ ...s, windowWatch: result.status }));
+        nextWindowCheckAt = Date.now() + (result.status === 'no-source' ? WINDOW_CHECK_IDLE_MS : WINDOW_CHECK_MS);
+      })
+      .catch(() => {
+        spotify.setWindowWatched(false);
+        nextWindowCheckAt = Date.now() + WINDOW_CHECK_IDLE_MS;
+      })
+      .finally(() => {
+        windowBusy = false;
+      });
+  }
+
+  /** Крыніца OBS з оверлэем: па яе ўзроўні гуку хваля рэагуе на відэа. */
+  function checkOverlaySource(now: number): void {
+    const client = obs;
+    if (!client || client.getStatus() !== 'connected' || overlaySourceBusy || now < nextOverlaySourceCheckAt) return;
+    overlaySourceBusy = true;
+    void findOverlaySource(client)
+      .then((found) => {
+        if (obs !== client) return;
+        const info = stores.youtube.get();
+        const name = found?.name ?? '';
+        const audio = found?.audio ?? false;
+        if (info.overlaySource !== name || info.overlayAudio !== audio) stores.youtube.set((s) => ({ ...s, overlaySource: name, overlayAudio: audio }));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        overlaySourceBusy = false;
+        nextOverlaySourceCheckAt = Date.now() + OVERLAY_SOURCE_CHECK_MS;
+      });
+  }
+
+  /** Ці не трапяць Spotify і відэа ў запіс стрыму на Twitch. */
+  function checkVod(now: number, force = false): void {
+    const client = obs;
+    if (!client || client.getStatus() !== 'connected' || vodBusy || (!force && now < nextVodCheckAt)) return;
+    vodBusy = true;
+    void readVodSnapshot(client)
+      .then((snapshot) => {
+        if (obs !== client) return;
+        stores.vod.set((v) => ({ ...v, report: analyzeVod(snapshot), plan: planVodFix(snapshot), checkedAt: Date.now(), error: '' }));
+      })
+      .catch((e: unknown) => {
+        if (obs === client) stores.vod.set((v) => ({ ...v, checkedAt: Date.now(), error: e instanceof Error ? e.message : String(e) }));
+      })
+      .finally(() => {
+        vodBusy = false;
+        nextVodCheckAt = Date.now() + VOD_CHECK_MS;
+      });
+  }
+
+  /** «Наладзіць»: бот сам расстаўляе дарожкі ў OBS па свежай праверцы. */
+  async function fixVod(): Promise<void> {
+    const client = obs;
+    if (!client || client.getStatus() !== 'connected' || stores.vod.get().fixing) return;
+    stores.vod.set((v) => ({ ...v, fixing: true }));
+    let error = '';
+    try {
+      await applyVodFix(client, planVodFix(await readVodSnapshot(client)));
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+    stores.vod.set((v) => ({ ...v, fixing: false, fixedAt: Date.now(), fixError: error }));
+    showNotice(error ? t('vod.fix.failed', { error }) : t('vod.fix.done'), error ? 'error' : 'ok');
+    checkVod(Date.now(), true);
+  }
+
+  /** Крыніца гуку для хвалі зараз: падчас відэа — гук відэа (выбраны ў наладах або знойдзены сам), інакш — музыка. */
+  function levelSource(): string {
+    const s = settings.get();
+    if (!vd.currentVideo(player.get())) return s.audioSource;
+    if (s.video.audioSource) return s.video.audioSource;
+    const info = stores.youtube.get();
+    if (info.overlaySource && info.overlayAudio) return info.overlaySource;
+    // Гуку відэа ў OBS няма — хваля рухаецца сама, пакуль відэа грае.
+    return SIMULATED_AUDIO;
+  }
+
+  /**
+   * Заказ гледача (тэставы з дока або за баллы з Twitch): пошук трэка або відэа, праверка правілаў, у канец нашай чаргі.
+   * Вынік бачны ў доку; для Twitch з яго робяцца «выканана» / вяртанне баллаў і паведамленне ў чат.
+   * `null` — мозг спыніўся, пакуль ішоў пошук (заказ Twitch апрацуе новы лідар).
+   */
+  async function processRequest(request: SongRequest): Promise<RequestOutcome | null> {
+    const outcome = await findAndAdd(request);
+    if (outcome) showNotice(noticeText(request, outcome), outcome.ok ? 'ok' : 'error');
+    return outcome;
+  }
+
+  /** Песня або відэа: узнагарода вызначае гэта для Twitch, а тэставая замова — па спасылцы. */
+  function kindOf(request: SongRequest): RequestKind {
+    if (request.kind) return request.kind;
+    return parseYouTubeLink(request.query) ? 'video' : 'song';
+  }
+
+  async function findTrack(request: SongRequest, kind: RequestKind): Promise<{ track: Track } | RequestOutcome | null> {
+    if (kind === 'video') {
+      const videoId = parseYouTubeLink(request.query);
+      if (videoId) {
+        const found = await findVideo(videoId, { fetch: youtubeFetch, probe: videoProbe });
+        if (!running) return null;
+        return found.ok ? { track: found.track } : { ok: false, reason: found.reason, video: true };
+      }
+      // Спасылка на YouTube, але не на відэа (канал, плэйліст) — шукаць няма чаго.
+      if (mentionsYouTube(request.query)) return { ok: false, reason: 'not-youtube', video: true };
+      return searchVideo(request.query.trim());
+    }
+    // Спасылка на YouTube ва ўзнагародзе песні — падказка, што для відэа ёсць свая ўзнагарода.
+    if (request.redemptionId && mentionsYouTube(request.query)) return { ok: false, reason: 'youtube-link' };
+    if (spotifyMode) {
+      const found = await spotify.search(request.query);
+      if (!running) return null;
+      if (!found.ok && found.reason === 'failed') return { ok: false, reason: 'spotify-failed' };
+      return found.ok ? { track: found.track } : { ok: false, reason: 'not-found' };
+    }
+    // Без Spotify — толькі выдуманыя трэкі: за баллы такое не дадаём.
+    if (request.redemptionId) return { ok: false, reason: 'spotify-off' };
+    const track = await provider.searchTrack(request.query);
+    if (!running) return null;
+    return track ? { track } : { ok: false, reason: 'not-found' };
+  }
+
+  /** Відэа па назве: першае прыдатнае з пошуку. Ліміт даўжыні — з налад, дублі і ліміт гледача — як заўсёды. */
+  async function searchVideo(query: string): Promise<{ track: Track } | RequestOutcome | null> {
+    const max = settings.get().rules.videoMaxDurationMin;
+    const found = await findVideoByQuery(query.slice(0, SEARCH_QUERY_MAX), {
+      fetch: youtubeFetch,
+      probe: videoProbe,
+      search: async (q) => {
+        const result = await videoSearch.search(q);
+        if (running) {
+          const patch = result.ok ? { searchMirror: videoSearch.lastMirror(), searchFailedAt: 0 } : { searchFailedAt: Date.now() };
+          stores.youtube.set((s) => ({ ...s, ...patch }));
+        }
+        return result;
+      },
+      maxDurationMs: max * 60_000,
+    });
+    if (!running) return null;
+    return found.ok ? { track: found.track } : { ok: false, reason: found.reason, video: true, max };
+  }
+
+  async function findAndAdd(request: SongRequest): Promise<RequestOutcome | null> {
+    const kind = kindOf(request);
+    const found = await findTrack(request, kind);
+    if (!found || 'ok' in found) return found;
+    const { track } = found;
+    const video = isVideo(track) || undefined;
+    const rules = settings.get().rules;
+    const check = checkRequest(rules, player.get(), track, request.user);
+    if (!check.ok) {
+      const max = check.reason === 'too-long' ? maxDurationFor(rules, track) : rules.maxPerUser;
+      return { ok: false, reason: check.reason, title: track.title, max, video };
+    }
+    const item = makeItem(track, request.user, request.redemptionId);
+    player.set((s) => (spotifyMode || video ? rq.appendRequest(s, item) : q.addRequest(s, item)));
+    // Захоўваем адразу: заказ за баллы не павінен згубіцца, калі лідар знікне.
+    persist();
+    return { ok: true, title: track.title, artist: track.artist, n: Math.max(player.get().requests.length, 1), video };
+  }
+
+  function noticeText(request: SongRequest, outcome: RequestOutcome): string {
+    const { user, query } = request;
+    if (outcome.ok) return t('player.added', { user, title: outcome.title, n: outcome.n });
+    switch (outcome.reason) {
+      case 'not-found':
+        return t('player.notFound', { user, query });
+      case 'spotify-failed':
+        return t('player.searchFailed', { user, query });
+      case 'too-long':
+        if (outcome.video) return t('player.rejected.video-too-long', { user, title: outcome.title ?? '', max: outcome.max ?? 0 });
+        return rejectText(outcome.reason, user, outcome.title ?? '');
+      case 'explicit':
+      case 'user-limit':
+      case 'duplicate':
+        return rejectText(outcome.reason, user, outcome.title ?? '');
+      case 'empty':
+        return t('player.emptyRequest', { user });
+      case 'video-search-none':
+      case 'video-search-unsuitable':
+      case 'video-search-failed':
+        return t(`player.video.${outcome.reason}`, { user, query, max: outcome.max ?? 0 });
+      case 'not-youtube':
+      case 'youtube-link':
+      case 'video-not-found':
+      case 'not-embeddable':
+      case 'live':
+      case 'youtube-failed':
+        return t(`player.video.${outcome.reason}`, { user, query });
+      default:
+        return t('player.spotifyOffRequest', { user, query });
+    }
+  }
+
+  function rejectText(reason: RejectReason, user: string, title: string): string {
+    const rules = settings.get().rules;
+    const max = reason === 'too-long' ? rules.maxDurationMin : rules.maxPerUser;
+    return t(`player.rejected.${reason}`, { user, title, max });
+  }
+
+  // --- OBS ---
+
+  /** Падключэнне да OBS з налад праграмы; калі не атрымалася — новая спроба праз некалькі секунд. */
+  let obsConnecting = false;
+  let nextObsAttemptAt = 0;
+  async function connectObs(): Promise<void> {
+    if (obsConnecting) return;
+    obsConnecting = true;
+    let config: { url: string; password: string };
+    try {
+      config = await core.obs();
+    } catch {
+      nextObsAttemptAt = Date.now() + 5000;
+      return;
+    } finally {
+      obsConnecting = false;
+    }
+    if (!running) return;
+    disconnectObs();
+    const { url, password } = config;
+    const client = new ObsClient({
+      url,
+      password,
+      eventSubscriptions: EventSubscription.General | EventSubscription.InputVolumeMeters,
+    });
+    obs = client;
+    client.onStatus((status, detail) => {
+      if (obs !== client) return;
+      stores.obs.set({ status, detail, version: client.obsWebSocketVersion });
+      if (status === 'connected') {
+        windowReader = createSpotifyWindowReader(client);
+        lastWindowKey = null;
+        nextWindowCheckAt = 0;
+        nextOverlaySourceCheckAt = 0;
+        nextVodCheckAt = 0;
+        void sender.attach(client, envelope({ type: 'ping', at: Date.now() })).then(() => {
+          if (obs !== client) return;
+          updateChannel();
+          sendState(true);
+        });
+      } else {
+        windowReader = null;
+        spotify.setWindowWatched(false);
+        stores.spotify.set((s) => (s.windowWatch === 'unknown' ? s : { ...s, windowWatch: 'unknown' }));
+        sender.detach();
+        updateChannel();
+      }
+    });
+    client.on('InputVolumeMeters', (data) => {
+      options.onObsEvent?.();
+      const inputs = (data as unknown as InputVolumeMetersEvent).inputs ?? [];
+      const levels: Record<string, number> = {};
+      for (const input of inputs) levels[input.inputName] = levelFromMeters(input.inputLevelsMul);
+      stores.meters.set(levels);
+      const source = levelSource();
+      if (source && source !== SIMULATED_AUDIO) {
+        let gain = autoGains.get(source);
+        if (!gain) autoGains.set(source, (gain = createAutoGain()));
+        const input = inputs.find((i) => i.inputName === source);
+        sendLevel(gain.level(input ? dbFromMeters(input.inputLevelsMul) : -Infinity, Date.now()));
+      }
+    });
+    client.connect();
+  }
+
+  function disconnectObs(): void {
+    obs?.disconnect();
+    obs = null;
+    windowReader = null;
+    sender.detach();
+    updateChannel();
+    stores.obs.set({ status: 'disconnected', detail: '', version: '' });
+    stores.meters.set({});
+    stores.vod.set(initialVodInfo());
+  }
+
+  async function seedDemo(): Promise<void> {
+    const initial = await provider.nextContextTracks(CONTEXT_MIN + 1);
+    player.set((s) => {
+      let next = q.appendContext(s, initial.map((tr) => makeItem(tr)));
+      next = q.skipNext(next);
+      next = { ...next, isPlaying: true };
+      next = q.addRequest(next, makeItem(MOCK_REQUEST_TRACKS[0], MOCK_VIEWERS[0]));
+      return q.addRequest(next, makeItem(MOCK_REQUEST_TRACKS[1], MOCK_VIEWERS[1]));
+    });
+  }
+
+  function execute(command: Command): void {
+    if (!running) return;
+    const video = vd.currentVideo(player.get());
+    switch (command.type) {
+      case 'toggle-play': {
+        // Нічога не загружана, а ў чарзе відэа — ▶ пачынае чаргу.
+        const first = player.get().requests[0];
+        if (!player.get().current && first && isVideo(first.track)) return startVideoNow(first.key, 'none');
+        // Відэа ставіць на паўзу плэер оверлэя: ён сочыць за `isPlaying`.
+        if (!spotifyMode || video) return player.set(q.togglePlay);
+        // Адразу паказваем паўзу/працяг, а калі Spotify не паслухаўся — вяртаем як было.
+        const wasPlaying = player.get().isPlaying;
+        player.set(q.togglePlay);
+        void spotify.command(wasPlaying ? 'pause' : 'play').then((ok) => {
+          if (!ok && running) player.set((s) => ({ ...s, isPlaying: wasPlaying }));
+        });
+        return;
+      }
+      case 'next':
+      case 'previous': {
+        if (video) return command.type === 'next' ? finishVideo('next') : player.set(vd.restartVideo);
+        const first = player.get().requests[0];
+        if (command.type === 'next' && first && isVideo(first.track)) return startVideoNow(first.key, 'next');
+        if (!spotifyMode) return player.set(command.type === 'next' ? q.skipNext : q.skipPrevious);
+        // Наступная — першы заказ гледача, калі ён ёсць (як у чарзе дока і оверлея).
+        if (command.type === 'next' && first?.track.uri) return playRequestNow(first.key);
+        // Паказваем вынік адразу (наступная — з чаргі, папярэдняя — з гісторыі), Spotify пацвердзіць або выправіць.
+        player.set((s) => optimisticSkip(s, command.type));
+        void spotify.command(command.type).then((ok) => {
+          if (!ok) spotify.nudge();
+        });
+        return;
+      }
+      case 'volume':
+        if (spotifyMode) spotify.setVolume(command.value);
+        return;
+      case 'play-now': {
+        const item = player.get().requests.find((r) => r.key === command.key);
+        if (spotifyMode || video || (item && isVideo(item.track))) return playRequestNow(command.key);
+        return player.set((s) => q.playNow(s, command.key));
+      }
+      case 'remove': {
+        // Заказ за баллы прыбралі — глядачу вяртаюцца баллы.
+        const item = player.get().requests.find((r) => r.key === command.key);
+        if (item?.redemptionId) twitch.removed(item.redemptionId, item.track.title);
+        player.set((s) => (spotifyMode ? rq.removeRequest(s, command.key) : q.removeRequest(s, command.key)));
+        return persist();
+      }
+      case 'save-current': {
+        const track = player.get().current?.track;
+        if (spotifyMode && track?.uri && canSave(track)) void spotify.save(track.uri);
+        return;
+      }
+      case 'spotify-disconnect':
+        clearTokens(storage);
+        if (spotifyMode) leaveSpotify();
+        return;
+      case 'test-request': {
+        const user = MOCK_VIEWERS[Math.floor(Math.random() * MOCK_VIEWERS.length)];
+        // Са Spotify — сапраўдныя трэкі праз пошук і відэа YouTube (па чарзе); без яго — выдуманыя.
+        if (spotifyMode) {
+          const query = SPOTIFY_TEST_QUERIES[testQueryIndex++ % SPOTIFY_TEST_QUERIES.length];
+          return requestSource.simulate({ user, query });
+        }
+        // Без Spotify — відэа YouTube (яны граюць і без Spotify); выдуманыя песні — толькі ў тэстах.
+        if (!options.demo) return requestSource.simulate({ user, ...YOUTUBE_TEST_QUERIES[testQueryIndex++ % YOUTUBE_TEST_QUERIES.length] });
+        const track = MOCK_REQUEST_TRACKS[Math.floor(Math.random() * MOCK_REQUEST_TRACKS.length)];
+        return requestSource.simulate({ user, query: `${track.artist} ${track.title}` });
+      }
+      case 'overlay-status':
+        return onOverlayStatus(command.id, command.owner, command.version);
+      case 'video-report': {
+        const { type: _, ...report } = command;
+        return onVideoReport(report);
+      }
+      case 'vod-check':
+        return checkVod(Date.now(), true);
+      case 'vod-fix':
+        return void fixVod();
+      case 'obs-connect':
+        return void connectObs();
+    }
+  }
+
+  return {
+    execute,
+
+    async start() {
+      running = true;
+      lastTickAt = Date.now();
+      // Стан папярэдняга лідара (або з мінулага запуску OBS); калі яго няма — тэставыя даныя.
+      const saved = loadPlayer(storage);
+      if (saved) player.set(saved);
+      else if (options.demo) await seedDemo();
+      if (!running) return;
+      loaded = true;
+      resumeSavedVideo();
+      stores.spotify.set((s) => ({ ...s, requestsToday: counter.get() }));
+      checkSpotify();
+      checkTwitch();
+      persist();
+      requestSource.start((request) => void processRequest(request));
+      stopFns.push(player.subscribe(() => sendState()));
+      const ticker = startTicker(TICK_MS, onTick);
+      stopFns.push(() => ticker.stop());
+      // Імітацыя гуку — асобны таймер з той жа частатой, што і InputVolumeMeters (~50 мс): для «Імітацыі рытму»
+      // і для відэа, гук якога OBS не бачыць.
+      const simTicker = startTicker(SIMULATED_AUDIO_MS, () => {
+        const source = levelSource();
+        if (source === SIMULATED_AUDIO) sendLevel(player.get().isPlaying ? simulatedLevel(Date.now()) : 0);
+        else if (!source) sendLevel(0);
+      });
+      stopFns.push(() => simTicker.stop());
+      sendState(true);
+      void connectObs();
+    },
+
+    stop() {
+      if (!running) return;
+      running = false;
+      spotify.stop();
+      // Старонка зачыняецца — узнагароду на паўзу; новы лідар (калі ён ёсць) зніме паўзу праз некалькі секунд.
+      twitch.stop(true);
+      for (const f of stopFns.splice(0)) f();
+      requestSource.stop();
+      persist();
+      disconnectObs();
+      sender.close();
+    },
+  };
+}
+
+export type Brain = ReturnType<typeof createBrain>;

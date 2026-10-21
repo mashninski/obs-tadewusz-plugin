@@ -1,0 +1,94 @@
+/* Оверлей галасавання: верхняя плашка (загалоўкі, абвесткі, таймер) і спіс пазіцый з кодамі і баламі. */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  color: #fff;
+  font: 32px 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+#overlay {
+  position: absolute;
+  right: 4%;
+  top: 8%;
+  width: 660px;
+  max-height: calc(92vh - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  --accent: #1ed760;
+}
+
+.status-card {
+  background: rgba(17, 17, 17, var(--header-opacity, 0.85));
+  border-radius: 16px;
+  margin-left: -12px;
+  padding: 12px 16px 12px 28px;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.77em;
+  font-weight: 500;
+  line-height: 1.35;
+}
+#messageStage { position: relative; width: 100%; overflow: hidden; min-height: 1.35em; transition: height 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+.message-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.message-slot.active { opacity: 1; transform: translateY(0); }
+.message-slot.leaving { transform: translateY(-8px); }
+.message-slot.action { color: #e2cca1; }
+.message-emphasis { font-weight: 700; color: #ead8b1; }
+.message-text { display: inline-block; white-space: nowrap; will-change: transform; }
+.action .message-text { display: block; white-space: pre-line; overflow-wrap: anywhere; }
+.message-text.countdown-text { display: flex; justify-content: space-between; gap: 16px; width: 100%; white-space: normal; }
+.countdown-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.queue-card {
+  margin-left: 32px;
+  background: rgba(12, 12, 12, var(--list-opacity, 0.75));
+  border-right: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 12px 10px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 1;
+}
+#viewport { max-height: 62vh; overflow: hidden; position: relative; min-height: 0; }
+#track { will-change: transform; display: flow-root; }
+.row {
+  display: grid;
+  grid-template-columns: 1.2em 3.5ch minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 0.66em;
+  line-height: 1.35;
+}
+.row:last-child { padding-bottom: 0; }
+.rank { font-size: 0.8em; color: #868686; min-width: 1.2em; font-variant-numeric: tabular-nums; }
+.code { font: 600 0.82em ui-monospace, Consolas, monospace; letter-spacing: 0.08em; color: #d7e9df; }
+.title { min-width: 0; overflow: hidden; }
+.title-clip { display: block; overflow: hidden; }
+.title-text { display: inline-block; white-space: nowrap; will-change: transform; }
+.score { font-variant-numeric: tabular-nums; font-size: 0.9em; overflow-wrap: anywhere; max-width: 100%; min-width: 0; margin-left: auto; text-align: right; }
+.row small { display: block; font-size: 0.8em; color: #ffd166; margin-top: 3px; }
+#empty { font-size: 0.5em; color: #999; padding: 6px 0; }
+
+@media (max-width: 400px) { .queue-card { margin-left: 22px; } }
+@media (prefers-reduced-motion: reduce) { .message-slot, #messageStage { transition: none; } }

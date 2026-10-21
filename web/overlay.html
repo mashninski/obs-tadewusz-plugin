@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="be">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tadewusz — галасаванне</title>
+    <link rel="stylesheet" href="/src/overlay/overlay.css" />
+  </head>
+  <body>
+    <div id="overlay">
+      <section id="statusCard" class="status-card" role="status" aria-live="polite" hidden>
+        <div id="messageStage">
+          <div class="message-slot" aria-hidden="true"></div>
+          <div class="message-slot" aria-hidden="true"></div>
+        </div>
+      </section>
+      <section class="queue-card">
+        <div id="viewport"><div id="track"></div></div>
+      </section>
+    </div>
+    <script type="module" src="/src/overlay/overlay.js"></script>
+  </body>
+</html>
