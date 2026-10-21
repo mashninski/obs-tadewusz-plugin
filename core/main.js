@@ -14,7 +14,7 @@ const { values } = parseArgs({
     data: { type: 'string' }, web: { type: 'string' }, port: { type: 'string' }, 'obs-pid': { type: 'string' }, verbose: { type: 'boolean' },
   },
 });
-const dataDir = resolve(values.data ?? process.env.TADEWUSZ_DATA ?? join(process.env.LOCALAPPDATA ?? homedir(), 'obs-tadewusz', 'data'));
+const dataDir = resolve(values.data ?? process.env.TADEWUSZ_DATA ?? join(homedir(), 'obs-tadewusz', 'data'));
 const webRoot = resolve(values.web ?? join(root, 'web', 'dist'));
 const port = Number(values.port ?? 18745);
 

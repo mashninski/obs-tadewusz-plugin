@@ -1,4 +1,5 @@
-// Усталяванне ў %LOCALAPPDATA%\obs-tadewusz\app (спачатку: npm run build).
+// Усталяванне ў %USERPROFILE%\obs-tadewusz\app (спачатку: npm run build).
+// Не ў AppData: праграмы з пакетаў MSIX бачаць там уласную віртуальную копію, і OBS не знайшоў бы файлы.
 // Папярэдняя версія застаецца побач у app.prev — вярнуць яе можна простым перайменаваннем.
 // Даныя (data\) не чапаюцца.
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const home = join(process.env.LOCALAPPDATA ?? homedir(), 'obs-tadewusz');
+const home = join(homedir(), 'obs-tadewusz');
 const target = join(home, 'app'), staging = join(home, 'app.new'), previous = join(home, 'app.prev');
 
 if (!existsSync(join(root, 'web', 'dist', 'dock.html'))) {

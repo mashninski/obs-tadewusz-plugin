@@ -55,7 +55,7 @@ npm run build
 npm run install-app
 ```
 
-Праграма ўсталюецца ў `%LOCALAPPDATA%\obs-tadewusz\app`, даныя — у `%LOCALAPPDATA%\obs-tadewusz\data`.
+Праграма ўсталюецца ў `%USERPROFILE%\obs-tadewusz\app`, даныя — у `%USERPROFILE%\obs-tadewusz\data`.
 Каманда пакажа, што дадаць у OBS:
 
 1. **Інструменты → Скрыпты:** `app\obs\tadewusz.lua` — праграма будзе запускацца разам з OBS.
