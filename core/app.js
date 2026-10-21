@@ -21,6 +21,7 @@ import { Steam } from './steam/steam.js';
 import { MusicBridge } from './music/bridge.js';
 import { LegacyMusicRewards } from './music/legacy-rewards.js';
 import { replyDefinitions, replyPlaceholders } from './chat/templates.js';
+import { WINNER_SHOW, winnerTickerText } from '../shared/winner-show.js';
 import { startServer } from './http/server.js';
 import { routes } from './http/routes.js';
 
@@ -62,7 +63,19 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   const eventsub = new EventSub({ twitch, Socket, log });
   const bindings = new Bindings(store);
   const notifications = new Notifications({ store, settings });
-  const voting = new Voting({ store, notify: event => notifications.show(event) });
+  // Пераможцу паказвае сцэнарый завяршэння на оверлеі (shared/winner-show.js), а не звычайная абвестка;
+  // бягучы радок абвяшчае яго ў той момант, калі хваля на оверлеі спыняецца на першым месцы.
+  let winnerTimer = null;
+  const notify = event => {
+    if (event.kind !== 'winner') return notifications.show(event);
+    notifications.discard();
+    if (!event.title) return;
+    clearTimeout(winnerTimer);
+    winnerTimer = setTimeout(() => {
+      try { ticker.announce(winnerTickerText(event.title)); } catch (error) { log('warn', 'ticker.winner', errorCode(error)); }
+    }, WINNER_SHOW.revealMs);
+  };
+  const voting = new Voting({ store, notify });
   const steam = new Steam({ vault, settings, saveSettings, fetchImpl });
   const votingReception = new VotingReception({
     store, voting, twitch, eventsub, settings, bindings, log,
@@ -172,6 +185,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   const close = () => closing ??= (async () => {
     stopping = true;
     clearInterval(timer);
+    clearTimeout(winnerTimer);
     await run.idle();
     await run(pauseAllRewards);
     eventsub.stop();

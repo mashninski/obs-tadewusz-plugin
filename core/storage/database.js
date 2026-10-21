@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { reserveCode } from '../voting/codes.js';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const SCHEMA_V2 = `
   CREATE TABLE rounds(id TEXT PRIMARY KEY, opened INTEGER NOT NULL, closed INTEGER, status TEXT NOT NULL, result TEXT);
@@ -85,6 +85,7 @@ export class Store {
       }
       if (version < 5) this.db.exec(SCHEMA_V5);
       if (version < 6) this.migrateSettingsV6();
+      if (version < 7) this.migrateRepliesV7();
       this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
     });
   }
@@ -115,6 +116,16 @@ export class Store {
     // Адкрытыя рэшткі старой схемы скасавання: «finalizing» для ўжо закрытых раўндаў не патрэбны.
     for (const row of this.db.prepare("SELECT id FROM rounds WHERE status='closed'").all())
       this.db.prepare('DELETE FROM settings WHERE id=?').run(`finalizing:${row.id}`);
+  }
+
+  /** v7: назвы гульняў у адказах чата пішуцца без двукоссяў (рашэнне аўтара 21.10.2026). */
+  migrateRepliesV7() {
+    const settings = this.get('settings', null);
+    const templates = settings?.replies?.templates;
+    if (!templates) return;
+    for (const [key, text] of Object.entries(templates))
+      if (typeof text === 'string') templates[key] = text.replace(/[«"„“]\{title\}[»"“”]/g, '{title}');
+    this.set('settings', settings);
   }
 
   get(key, fallback) {

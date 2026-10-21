@@ -41,11 +41,17 @@ export function routes(ctx) {
       const vote = voting.snapshot(), display = settings().display, selection = store.get('display.selection', null);
       const headlineActive = selection && selection.at + display.headlineDuration * 1000 > Date.now();
       const countdown = vote.deadline && vote.status !== 'closed';
-      // Пасля завяршэння пераможца застаецца ў шапцы оверлея да новага раўнда.
-      const won = vote.status === 'closed' ? vote.result?.ranked?.find(e => e.id === vote.result.winnerId) : null;
+      // Закрыты раўнд: оверлей разыгрывае сцэнарый (пераможца, выбылыя) і трымае вынік да новага раўнда.
+      const result = vote.status === 'closed' ? vote.result : null;
+      const winner = result?.ranked?.find(e => e.id === result.winnerId);
+      const show = result ? {
+        roundId: vote.roundId, closedAt: result.closedAt,
+        winner: winner ? { id: winner.id, title: winner.title } : null,
+        removed: result.carryPolicy === 'pending' ? voting.previewCarry().filter(s => s.removed).map(s => ({ id: s.id, title: s.title })) : [],
+      } : null;
       return {
-        vote: { roundId: vote.roundId, status: vote.status, deadline: vote.deadline, serverNow: vote.serverNow,
-          winner: won ? `Пераможца: ${won.title} · ${won.score}` : null, entries: vote.entries.map(e => ({ code: e.code, title: e.title, score: e.score, availability: e.availability })) },
+        vote: { roundId: vote.roundId, status: vote.status, deadline: vote.deadline, serverNow: vote.serverNow, show,
+          entries: vote.entries.map(e => ({ id: e.id, code: e.code, title: e.title, score: e.score, availability: e.availability })) },
         display, notification: countdown || headlineActive ? null : notifications.current(), headlineSelection: selection,
       };
     },

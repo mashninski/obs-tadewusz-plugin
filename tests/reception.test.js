@@ -43,7 +43,7 @@ test('пакупкі, зробленыя без сувязі, даганяюцц
   await reception.tick();
   assert.equal(voting.entries()[0].score, 500);
   assert.equal(twitch.redemptionMap.get(r.id).status, 'FULFILLED');
-  assert.deepEqual(twitch.chatLog, ['@viewer, +500 талераў на «Stray»']);
+  assert.deepEqual(twitch.chatLog, ['@viewer, +500 талераў на Stray']);
 });
 
 test('часовы збой Twitch: аперацыя паўтараецца пазней; памылка доступу блакуе да новага ўваходу', async t => {
@@ -85,7 +85,10 @@ test('завяршэнне раўнда: схаваць узнагароды, д
   assert.equal(voting.snapshot().result.ranked[0].score, 500);
   assert.ok([...twitch.rewardMap.values()].every(r => r.is_paused));
   await reception.drain();
-  assert.ok(twitch.chatLog.includes('Перамагла «Stray» — 500 талераў'));
+  assert.ok(!twitch.chatLog.some(m => m.startsWith('Перамагла'))); // чат не апярэджвае экран
+  now.advance(10_000);
+  await reception.drain();
+  assert.ok(twitch.chatLog.includes('Перамагла Stray — 500 талераў'));
 });
 
 test('без уваходу ў Twitch раўнд завяршаецца адразу', async t => {

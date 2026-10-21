@@ -48,3 +48,16 @@ test('без бачнай крыніцы ў эфіры паказ не пачы�
   paid('p1');
   assert.equal(beat().job, null);
 });
+
+test('аб’ява пераможцы: зверху спіса і адразу ў чарзе, аўтаматычная аб’ява саступае', t => {
+  const { ticker } = setup(t);
+  const first = randomUUID();
+  ticker.save({ ...ticker.config(), announcements: [{ id: first, text: 'Падпісвайцеся' }] });
+  ticker.queue('automatic', 'Падпісвайцеся', { announcement: first });
+  const { id } = ticker.announce('Пераможца галасавання — **Stray**');
+  const config = ticker.config();
+  assert.deepEqual(config.announcements.map(a => a.text), ['Пераможца галасавання — **Stray**', 'Падпісвайцеся']);
+  const queue = ticker.snapshot().queue;
+  assert.deepEqual(queue.map(j => [j.kind, j.text]), [['manual', 'Пераможца галасавання — **Stray**']]);
+  assert.ok(id);
+});

@@ -10,6 +10,9 @@ export function cueNotes(kind) {
     note(0, 440, .90, .45, 'triangle'), note(.18, 659.25, 1.02, .62),
     note(.43, 880, 1.13, .46), note(.60, 659.25, .88, .28),
   ];
+  // Апошнія секунды таймера: кароткі высокі «пік», на нулі — даўжэйшы і вышэйшы.
+  if (kind === 'tick') return [note(0, 880, .16, .55)];
+  if (kind === 'tick-final') return [note(0, 1318.51, .55, .5), note(0, 659.25, .55, .22, 'triangle')];
   if (kind === 'winner') return [
     note(0, 261.63, 2.45, .24, 'triangle'), note(0, 392, 2.40, .21),
     note(.12, 523.25, 2.25, .38), note(.38, 659.25, 2.10, .39),
@@ -30,7 +33,7 @@ export function scheduleCue(context, kind, volume, at = context.currentTime) {
   for (const n of notes) {
     const osc = context.createOscillator(), gain = context.createGain();
     osc.type = n.type; osc.frequency.value = n.hz;
-    const start = at + n.at, attack = kind === 'winner' ? .10 : .045;
+    const start = at + n.at, attack = kind === 'winner' ? .10 : kind.startsWith('tick') ? .008 : .045;
     gain.gain.setValueAtTime(0, start);
     gain.gain.linearRampToValueAtTime(n.level, start + attack);
     gain.gain.exponentialRampToValueAtTime(n.level * .44, start + n.duration * .48);

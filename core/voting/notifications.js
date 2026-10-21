@@ -41,6 +41,11 @@ export class Notifications {
     return this.format({ ...next, shown: at }, duration);
   }
 
+  /** Раўнд закрыты: абвесткі, што не паспелі (у тым ліку пра галасы падчас таймера), ужо не паказваюцца. */
+  discard() {
+    this.db.prepare("UPDATE notifications SET status='done' WHERE status IN ('pending','shown')").run();
+  }
+
   /** Перапыніць бягучую абвестку (напрыклад, каб адразу паказаць загаловак). */
   release() {
     this.db.prepare("UPDATE notifications SET status='pending',shown=NULL WHERE status='shown'").run();

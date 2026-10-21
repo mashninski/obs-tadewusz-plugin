@@ -40,5 +40,33 @@ test('стан для дока і оверлея: пазіцыі з кодамі
   assert.equal(state.vote.entries[0].code, 'DET');
   assert.equal(JSON.stringify(state).includes('access_token'), false);
   const overlay = await (await fetch(`${origin}/overlay/state`, { headers: { cookie } })).json();
-  assert.deepEqual(Object.keys(overlay.vote.entries[0]).sort(), ['availability', 'code', 'score', 'title']);
+  assert.deepEqual(Object.keys(overlay.vote.entries[0]).sort(), ['availability', 'code', 'id', 'score', 'title']);
+});
+
+test('завяршэнне раўнда: оверлей атрымлівае сцэнарый, бягучы радок абвяшчае пераможцу', async t => {
+  const { app, origin, cookie } = await start(t);
+  const headers = { cookie, origin, 'x-tadewusz': '1', 'content-type': 'application/json' };
+  const post = (path, body = {}) => fetch(`${origin}${path}`, { method: 'POST', headers, body: JSON.stringify(body) }).then(r => r.json());
+  const titles = ['Stray', 'Doom Eternal', 'Portal', 'Apex', 'Magicka', 'Blade of Darkness'];
+  for (const title of titles) await post('/api/vote/add', { title });
+  const entries = app.voting.entries();
+  await post('/api/vote/edit', { id: entries.find(e => e.title === 'Stray').id, score: 5000 });
+  await post('/api/vote/edit', { id: entries.find(e => e.title === 'Doom Eternal').id, score: 3000 });
+  await post('/api/vote/close');
+  // Без Twitch вынік фіксуецца на наступным кроку цыкла.
+  for (let i = 0; i < 30 && app.voting.current().status !== 'closed'; i++) await new Promise(r => setTimeout(r, 100));
+  const overlay = await (await fetch(`${origin}/overlay/state`, { headers: { cookie } })).json();
+  assert.equal(overlay.vote.status, 'closed');
+  assert.equal(overlay.vote.show.winner.title, 'Stray');
+  assert.equal(overlay.vote.show.removed.length, 1); // 6 пазіцый → выбывае адна
+  assert.equal(overlay.notification, null); // пераможцу паказвае сцэнарый, не звычайная абвестка
+  const { WINNER_SHOW } = await import('../shared/winner-show.js');
+  await new Promise(r => setTimeout(r, WINNER_SHOW.revealMs + 400));
+  const config = app.ticker.config();
+  assert.equal(config.announcements[0].text, 'Пераможца галасавання — **Stray**');
+  assert.equal(app.ticker.snapshot().queue[0]?.text ?? app.ticker.snapshot().current?.text, 'Пераможца галасавання — **Stray**');
+  await post('/api/vote/next');
+  const reopened = await (await fetch(`${origin}/overlay/state`, { headers: { cookie } })).json();
+  assert.equal(reopened.vote.show, null);
+  assert.equal(reopened.vote.entries.length, 5);
 });

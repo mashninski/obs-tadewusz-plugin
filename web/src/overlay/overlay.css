@@ -20,6 +20,8 @@ html, body {
   flex-direction: column;
   gap: 10px;
   --accent: #1ed760;
+  --gold: #f2d184;
+  --gold-soft: rgba(242, 209, 132, 0.26);
 }
 
 .status-card {
@@ -34,6 +36,11 @@ html, body {
   font-size: 0.77em;
   font-weight: 500;
   line-height: 1.35;
+  transition: box-shadow 0.8s ease, background-color 0.8s ease;
+}
+/* Пераможца ў шапцы: залатая рамка і мяккае ззянне. */
+.status-card.celebrate {
+  box-shadow: inset 0 0 0 1.5px rgba(242, 209, 132, 0.55), 0 0 36px rgba(242, 209, 132, 0.22);
 }
 #messageStage { position: relative; width: 100%; overflow: hidden; min-height: 1.35em; transition: height 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
 .message-slot {
@@ -54,8 +61,26 @@ html, body {
 .message-emphasis { font-weight: 700; color: #ead8b1; }
 .message-text { display: inline-block; white-space: nowrap; will-change: transform; }
 .action .message-text { display: block; white-space: pre-line; overflow-wrap: anywhere; }
-.message-text.countdown-text { display: flex; justify-content: space-between; gap: 16px; width: 100%; white-space: normal; }
-.countdown-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.message-text.countdown-text { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; white-space: normal; }
+
+/* Таймер: подпіс дробны, лічбы буйныя; апошнія 5 секунд — залатыя з лёгкім штуршком. */
+.countdown-label { font-size: 0.6em; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+.countdown-time {
+  font-size: 2.15em;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.countdown-time.urgent { color: var(--gold); text-shadow: 0 0 22px rgba(242, 209, 132, 0.45); }
+.countdown-time.beat { animation: beat 0.55s cubic-bezier(0.2, 0.9, 0.2, 1); }
+@keyframes beat { 0% { transform: scale(1.14); } 100% { transform: scale(1); } }
+
+.message-text.winner-text { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.55em; white-space: normal; }
+.winner-label { font-size: 0.6em; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+.winner-title { font-size: 1.3em; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; text-shadow: 0 0 20px rgba(242, 209, 132, 0.35); }
 
 .queue-card {
   margin-left: 32px;
@@ -76,10 +101,43 @@ html, body {
   grid-template-columns: 1.2em 3.5ch minmax(0, 1fr) auto;
   gap: 6px;
   align-items: baseline;
-  padding: 3px 0;
+  margin: 0 -6px;
+  padding: 3px 6px;
+  border-radius: 6px;
   font-size: 0.66em;
   line-height: 1.35;
 }
+
+/* ---------- Завяршэнне раўнда ---------- */
+/* Хваля колеру бяжыць знізу ўверх. */
+.row.wave { animation: wave 0.7s ease-out; }
+@keyframes wave {
+  0% { background-color: transparent; box-shadow: inset 0 0 0 transparent; }
+  30% { background-color: var(--gold-soft); box-shadow: inset 3px 0 0 var(--gold); }
+  100% { background-color: transparent; box-shadow: inset 0 0 0 transparent; }
+}
+/* Пераможца падсвечаны да новага раўнда. */
+.row.winner {
+  background: linear-gradient(90deg, rgba(242, 209, 132, 0.3), rgba(242, 209, 132, 0.07));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.row.winner .title, .row.winner .score { font-weight: 700; color: #fff4d6; }
+.row.winner .rank, .row.winner .code { color: var(--gold); }
+.row.reveal { animation: reveal 1.6s cubic-bezier(0.2, 0.9, 0.2, 1); }
+@keyframes reveal {
+  0% { transform: scale(1); box-shadow: inset 3px 0 0 var(--gold), 0 0 0 rgba(242, 209, 132, 0); }
+  22% { transform: scale(1.035); box-shadow: inset 3px 0 0 var(--gold), 0 0 30px rgba(242, 209, 132, 0.6); }
+  100% { transform: scale(1); box-shadow: inset 3px 0 0 var(--gold), 0 0 0 rgba(242, 209, 132, 0); }
+}
+/* Выбылыя растаюць у паветры і схлопваюцца. */
+.row.dissolve { animation: dissolve 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes dissolve {
+  0% { opacity: 1; filter: blur(0); transform: none; }
+  100% { opacity: 0; filter: blur(9px); transform: translateY(-12px) scale(1.04); letter-spacing: 0.08em; }
+}
+.row.dissolve, .row.gone { max-height: 3em; overflow: hidden; transition: max-height 0.6s ease, padding 0.6s ease; }
+.row.gone { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+.row.instant { animation: none !important; transition: none !important; }
 .row:last-child { padding-bottom: 0; }
 .rank { font-size: 0.8em; color: #868686; min-width: 1.2em; font-variant-numeric: tabular-nums; }
 .code { font: 600 0.82em ui-monospace, Consolas, monospace; letter-spacing: 0.08em; color: #d7e9df; }
@@ -91,4 +149,4 @@ html, body {
 #empty { font-size: 0.5em; color: #999; padding: 6px 0; }
 
 @media (max-width: 400px) { .queue-card { margin-left: 22px; } }
-@media (prefers-reduced-motion: reduce) { .message-slot, #messageStage { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .message-slot, #messageStage { transition: none; } .row { animation: none !important; } }

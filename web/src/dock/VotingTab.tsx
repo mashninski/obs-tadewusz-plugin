@@ -99,7 +99,7 @@ function EntryEditor({ entry, entries, onDone }: { entry: Entry; entries: Entry[
   const remove = async () => {
     const info = await run(() => api<{ score: number; refundable: number }>('/api/vote/removal-info', { id: entry.id }), '');
     if (!info) return;
-    const lines = [`Выдаліць «${entry.title}»?`];
+    const lines = [`Выдаліць ${entry.title}?`];
     if (info.score > 0) lines.push(`${points(info.score)} балаў згараць: Twitch не вяртае ўжо пацверджаныя галасы. Каб іх захаваць, спачатку перанясіце балы.`);
     if (info.refundable > 0) lines.push(`Глядачу вернецца кошт дадавання: ${points(info.refundable)}.`);
     if (!confirm(lines.join('\n\n'))) return;
@@ -107,7 +107,7 @@ function EntryEditor({ entry, entries, onDone }: { entry: Entry; entries: Entry[
   };
   const move = () => {
     const to = entries.find((e) => e.id === target);
-    if (to && confirm(`Перанесці ${points(entry.score)} балаў з «${entry.title}» на «${to.title}»?`))
+    if (to && confirm(`Перанесці ${points(entry.score)} балаў: ${entry.title} → ${to.title}?`))
       void run(() => api('/api/vote/move', { from: entry.id, to: target }), 'Балы перанесены');
   };
 

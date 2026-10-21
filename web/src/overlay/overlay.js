@@ -1,5 +1,6 @@
 // Оверлей галасавання. Мадэлі руху (пракрутка спіса, змена загалоўкаў) — чыстыя класы, іх правяраюць тэсты.
 import { scheduleCue } from './sound.js';
+import { NEXT_ROUND_TEXT, showTimeline, WINNER_SHOW } from '../../../shared/winner-show.js';
 
 export function elasticProgress(value) {
   const p = Math.max(0, Math.min(1, value));
@@ -93,17 +94,55 @@ export function actionSegments(text) {
   }
   return parts;
 }
+/**
+ * Што кажа шапка ў момант `t` (мс ад закрыцця раўнда) і куды глядзіць спіс:
+ * «І перамагае…» пад хвалю → пераможца → выбылыя (спіс едзе ўніз да іх) → наступнае галасаванне.
+ */
+export function showPhase(show, t) {
+  const { removedAt, finalAt } = showTimeline(show.removed.length);
+  const round = show.roundId;
+  if (!show.winner) return { header: { key: `show:${round}:final`, text: NEXT_ROUND_TEXT }, scroll: 'top' };
+  if (t < WINNER_SHOW.revealMs) return { header: { key: `show:${round}:wait`, text: 'І перамагае…' }, scroll: 'top' };
+  if (t < removedAt) return { header: { key: `show:${round}:winner`, winner: show.winner.title }, scroll: 'top' };
+  if (show.removed.length && t < finalAt) {
+    const titles = show.removed.map(r => r.title).join(', ');
+    return { header: { key: `show:${round}:removed`, text: `${show.removed.length === 1 ? 'Выбывае' : 'Выбываюць'}: ${titles}` }, scroll: 'bottom' };
+  }
+  return { header: { key: `show:${round}:final`, text: NEXT_ROUND_TEXT }, scroll: 'top' };
+}
+
+/** Калі пачынае раставаць j-я выбылая пазіцыя (лік ад самай ніжняй). */
+export const dissolveStart = j => showTimeline(1).removedAt + WINNER_SHOW.scrollMs + j * WINNER_SHOW.dissolveStepMs;
+
+/** Плаўны пераезд спіса да зададзенай пазіцыі (для сцэнарыя завяршэння). */
+class Glide {
+  constructor() { this.position = 0; this.target = null; }
+  tick(now, target) {
+    if (target !== this.target) {
+      // Спіс ужо даехаў, а мэта зрушылася трохі (выбылыя схлопваюцца) — ісці следам, без новага разгону.
+      const follow = this.target !== null && now - this.at >= WINNER_SHOW.scrollMs && Math.abs(target - this.target) < 160;
+      this.from = follow ? target : this.position; this.target = target; this.at = follow ? now - WINNER_SHOW.scrollMs : now;
+    }
+    const p = Math.min(1, (now - this.at) / WINNER_SHOW.scrollMs);
+    return this.position = this.from + (target - this.from) * elasticProgress(p);
+  }
+}
+
 if (typeof document !== 'undefined') {
   const viewport = document.getElementById('viewport'), track = document.getElementById('track');
   const card = document.getElementById('statusCard'), stage = document.getElementById('messageStage');
-  const slots = [...stage.children], scroll = new ScrollLoop(), banner = new BannerCycle();
-  let countdown = null, winner = null, serverOffset = 0;
+  const slots = [...stage.children], banner = new BannerCycle();
+  let scroll = new ScrollLoop(), glide = null;
+  let countdown = null, status = 'open', show = null, display = null, serverOffset = 0;
   let previous = '', speed = 24, fetching = false, alertId = null, audio, messageKey = '', slot = 0, generation = 0;
   let titleMotions = [], headline = null, headlineAction = false, headlineGeometry = '';
+  let beepKey = '', fanfareRound = '';
   const ticker = new HeadlineTicker();
+  const serverNow = () => Date.now() + serverOffset;
+
   function rows(entries) {
     return entries.map((entry, index) => {
-      const row = document.createElement('div'); row.className = 'row';
+      const row = document.createElement('div'); row.className = 'row'; row.dataset.id = entry.id ?? '';
       for (const [value, cls] of [[index + 1, 'rank'], [entry.code, 'code'], [entry.title, 'title'], [entry.score, 'score']]) {
         const span = document.createElement('span'); span.className = cls;
         if (cls === 'title') {
@@ -128,29 +167,34 @@ if (typeof document !== 'undefined') {
       stage.style.height = Math.max(headline.parentElement.scrollHeight,1) + 'px';
     }
   }
+  function span(className, text) { const el = document.createElement('span'); el.className = className; el.textContent = text; return el; }
   function message(value) {
     if (value.key === messageKey) return;
-    messageKey = value.key; card.hidden = !value.text; const sequence = ++generation;
+    messageKey = value.key; card.hidden = !(value.text || value.countdown || value.winner); const sequence = ++generation;
+    card.classList.toggle('timer', !!value.countdown);
+    card.classList.toggle('celebrate', !!value.winner);
     const old = slots[slot]; old.classList.remove('active'); old.classList.add('leaving'); old.setAttribute('aria-hidden','true');
     slot = 1 - slot; const next = slots[slot];
-    headline = document.createElement('span'); headline.className = value.countdown ? 'message-text countdown-text' : 'message-text';
+    headline = document.createElement('span'); headline.className = 'message-text';
     if (value.countdown) {
-      const label = document.createElement('span'), time = document.createElement('span');
-      label.textContent = 'Да канца галасавання'; time.className = 'countdown-time'; time.textContent = value.time; headline.append(label,time);
+      headline.classList.add('countdown-text');
+      headline.append(span('countdown-label', 'Да канца галасавання'), span('countdown-time', value.time));
+    } else if (value.winner) {
+      headline.classList.add('winner-text');
+      headline.append(span('winner-label', 'Пераможца'), span('winner-title', value.winner));
     } else if (value.action) {
       for (const part of actionSegments(value.text)) {
-        const span = document.createElement('span'); span.textContent = part.text;
-        if (part.emphasis) span.className = 'message-emphasis'; headline.append(span);
+        const el = span(part.emphasis ? 'message-emphasis' : '', part.text); headline.append(el);
       }
     } else headline.textContent = value.text;
     next.replaceChildren(headline);
-    headlineAction = value.action || value.countdown; headlineGeometry = '';
+    headlineAction = !!(value.action || value.countdown || value.winner); headlineGeometry = '';
     next.className = `message-slot${value.action ? ' action' : ''}`; next.setAttribute('aria-hidden','false');
     measure();
     requestAnimationFrame(() => { if (sequence === generation) next.classList.add('active'); });
   }
-  async function tone(display, kind) {
-    if (!display.sound || display.volume <= 0 || kind === 'error') return;
+  async function tone(kind) {
+    if (!display?.sound || display.volume <= 0 || kind === 'error') return;
     try {
       audio ??= new AudioContext(); await audio.resume(); if (audio.state !== 'running') return;
       scheduleCue(audio, kind, display.volume);
@@ -160,12 +204,17 @@ if (typeof document !== 'undefined') {
     if (fetching) return; fetching = true;
     try {
       const response = await fetch('/overlay/state'); if (!response.ok) return;
-      const state = await response.json(), display = state.display, now = performance.now(); speed = display.speed;
+      const state = await response.json(), now = performance.now();
+      display = state.display; speed = display.speed;
       document.documentElement.style.setProperty('--header-opacity', display.headerOpacity ?? .85);
       document.documentElement.style.setProperty('--list-opacity', display.listOpacity ?? .75);
-      countdown = state.vote.status !== 'closed' ? state.vote.deadline : null;
-      winner = state.vote.winner ? { key: `winner:${state.vote.roundId}`, text: state.vote.winner, action: false } : null;
+      status = state.vote.status;
+      countdown = status !== 'closed' ? state.vote.deadline : null;
       serverOffset = state.vote.serverNow - Date.now();
+      const nextShow = state.vote.show ?? null;
+      if (!nextShow && show) { scroll = new ScrollLoop(); glide = null; }
+      if (nextShow && !show) { glide = new Glide(); glide.position = scroll.position; }
+      show = nextShow;
       document.body.style.fontFamily = display.font; document.body.style.fontSize = display.size + 'px'; document.body.style.color = display.color;
       document.getElementById('overlay').style.width = Math.min(display.width, Math.max(0, innerWidth - 64)) + 'px'; viewport.style.maxHeight = display.height + 'vh';
       banner.configure(display.headlines, now, display.headlineDuration, display.duration);
@@ -176,25 +225,68 @@ if (typeof document !== 'undefined') {
         if (!state.vote.entries.length) { const empty = document.createElement('div'); empty.id = 'empty'; empty.textContent = 'Пакуль няма пазіцый'; track.append(empty); }
       }
       banner.show(state.notification, now); renderMessage(now); measure();
-      if (state.notification && state.notification.id !== alertId) { alertId = state.notification.id; void tone(display, state.notification.kind); }
+      if (state.notification && state.notification.id !== alertId) { alertId = state.notification.id; void tone(state.notification.kind); }
     } catch { /* Пры часовым збоі сувязі застаецца апошні паказаны стан. */ }
     finally { fetching = false; }
   }
+
+  /** Класы радкоў у сцэнарыі завяршэння. Ідэмпатэнтна: позна адкрыты оверлей адразу паказвае вынік без анімацый. */
+  function stageRows(t) {
+    const list = [...track.querySelectorAll('.row')];
+    // Позна (оверлей адкрылі пасля моманту) — без анімацыі, адразу вынік (`outcome`).
+    const mark = (row, name, start, length, outcome) => {
+      if (row.dataset[name] || t < start) return;
+      row.dataset[name] = '1';
+      if (t > start + length) { if (outcome) row.classList.add('instant', outcome); return; }
+      row.classList.add(name);
+      if (name === 'wave' || name === 'reveal') setTimeout(() => row.classList.remove(name), length + 100);
+    };
+    // Хваля — па бачных радках, знізу ўверх (спіс у гэты час наверсе).
+    const visible = list.filter(row => row.offsetTop < viewport.clientHeight);
+    const step = WINNER_SHOW.waveMs / Math.max(1, visible.length);
+    visible.forEach((row, index) => mark(row, 'wave', WINNER_SHOW.waveStartMs + (visible.length - 1 - index) * step, 700));
+    const winner = show.winner && list.find(row => row.dataset.id === show.winner.id);
+    if (winner) { mark(winner, 'reveal', WINNER_SHOW.revealMs, 1600); if (t >= WINNER_SHOW.revealMs) winner.classList.add('winner'); }
+    [...show.removed].reverse().forEach((removed, j) => {
+      const row = list.find(r => r.dataset.id === removed.id);
+      if (!row) return;
+      mark(row, 'dissolve', dissolveStart(j), WINNER_SHOW.dissolveMs, 'gone');
+      mark(row, 'gone', dissolveStart(j) + WINNER_SHOW.dissolveMs, 600, 'gone');
+    });
+  }
+
   function renderMessage(now) {
-    if (!countdown) {
-      // Абвестка (у тым ліку пра пераможцу) ідзе як звычайна, а замест загалоўкаў — пераможца, пакуль раўнд закрыты.
-      const value = banner.tick(now);
-      return message(winner && !value.action ? winner : value);
+    if (show) {
+      const t = serverNow() - show.closedAt, phase = showPhase(show, t);
+      stageRows(t);
+      if (show.winner && t >= WINNER_SHOW.revealMs && t < WINNER_SHOW.revealMs + 3000 && fanfareRound !== show.roundId) {
+        fanfareRound = show.roundId; void tone('winner');
+      }
+      return message(phase.header);
     }
-    const seconds = Math.max(0, Math.ceil((countdown.due - (Date.now() + serverOffset)) / 1000));
+    const seconds = countdown ? Math.max(0, Math.ceil((countdown.due - serverNow()) / 1000)) : null;
+    if (status === 'finalizing' || seconds === 0) {
+      if (countdown && beepKey !== `${countdown.roundId}:0`) { beepKey = `${countdown.roundId}:0`; void tone('tick-final'); }
+      return message({ key: 'counting', text: 'Падлік галасоў…' });
+    }
+    if (!countdown) return message(banner.tick(now));
     const time = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`;
     // Вузел таймера стабільны: звычайная змена загалоўкаў яго не хавае.
-    const key = `countdown:${countdown.roundId}`;
-    message({ key, text: 'Да канца галасавання', countdown: true, time });
-    const clock = headline?.querySelector('.countdown-time'); if (clock) clock.textContent = time;
+    message({ key: `countdown:${countdown.roundId}`, countdown: true, time });
+    const clock = headline?.querySelector('.countdown-time');
+    if (!clock) return;
+    clock.textContent = time;
+    clock.classList.toggle('urgent', seconds <= 5);
+    // Апошнія пяць секунд: кароткі сігнал і лёгкі штуршок лічбаў кожную секунду.
+    const key = `${countdown.roundId}:${seconds}`;
+    if (seconds <= 5 && beepKey !== key) {
+      beepKey = key; void tone('tick');
+      clock.classList.remove('beat'); void clock.offsetWidth; clock.classList.add('beat');
+    }
   }
   function animate(now) {
-    track.style.transform = `translate3d(0,${-scroll.tick(now)}px,0)`; renderMessage(now);
+    const position = show && glide ? glide.tick(now, showPhase(show, serverNow() - show.closedAt).scroll === 'bottom' ? scroll.max : 0) : scroll.tick(now);
+    track.style.transform = `translate3d(0,${-position}px,0)`; renderMessage(now);
     for (const item of titleMotions) item.text.style.transform = `translate3d(${-item.motion.tick(now)}px,0,0)`;
     if (headline) headline.style.transform = `translate3d(${ticker.tick(now)}px,0,0)`;
     requestAnimationFrame(animate);

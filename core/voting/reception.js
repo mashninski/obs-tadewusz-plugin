@@ -4,6 +4,10 @@
 // • Статус у Twitch (FULFILLED/CANCELED) ставіцца з outbox пасля таго, як рашэнне ўжо запісана ў базу.
 import { purchaseReply, renderReply } from '../chat/templates.js';
 import { errorCode } from '../util/log.js';
+import { WINNER_SHOW } from '../../shared/winner-show.js';
+
+/** Прыкладная затрымка відэа ў гледачоў Twitch. */
+const STREAM_DELAY_MS = 5000;
 
 const RECONCILE_EVERY_MS = 300_000;
 const BLOCKING = ['remote_400', 'remote_401', 'remote_403', 'remote_404', 'refund_unavailable', 'redemption_not_found'];
@@ -269,8 +273,10 @@ export class VotingReception {
     const winner = result.ranked.find(e => e.id === result.winnerId);
     if (this.account() && this.settings().replies.enabled) {
       const message = renderReply(winner ? 'winner' : 'empty', winner ?? {}, this.settings().replies).slice(0, 500);
-      this.store.db.prepare('INSERT OR IGNORE INTO outbox(id,kind,payload,status) VALUES (?,?,?,?)')
-        .run(`winner:${this.voting.current().id}`, 'chat', JSON.stringify({ account: this.account(), message }), 'pending');
+      // Чат ідзе без затрымкі стрыму: паведамленне чакае, пакуль гледачы ўбачаць пераможцу на экране.
+      this.store.db.prepare('INSERT OR IGNORE INTO outbox(id,kind,payload,status,next) VALUES (?,?,?,?,?)')
+        .run(`winner:${this.voting.current().id}`, 'chat', JSON.stringify({ account: this.account(), message }), 'pending',
+          result.closedAt + WINNER_SHOW.revealMs + STREAM_DELAY_MS);
     }
     this.log('info', 'round.closed');
   }

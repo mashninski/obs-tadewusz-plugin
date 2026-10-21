@@ -27,13 +27,13 @@ function legacyDatabase(path) {
   legacy.close();
 }
 
-test('міграцыя v5 → v6: копія перад зменай, фінансавыя даныя без змен, службовыя ключы спрошчаны', t => {
+test('міграцыя v5 → v7: копія перад зменай, фінансавыя даныя без змен, службовыя ключы спрошчаны', t => {
   const dir = tempDir(), path = join(dir, 'obs-bot.sqlite');
   legacyDatabase(path);
   const s = new Store(path);
   t.after(() => s.close());
-  assert.equal(s.version(), 6);
-  assert.ok(readdirSync(dir).some(n => n.startsWith('obs-bot.sqlite.before-v6-')));
+  assert.equal(s.version(), 7);
+  assert.ok(readdirSync(dir).some(n => n.startsWith('obs-bot.sqlite.before-v7-')));
   assert.deepEqual(s.get('twitch.rewardBindings'), { 'c:1': { add: 'a', support_0: 's0', ticker: 't' } });
   assert.deepEqual(s.get('reception'), { voting: true, ticker: false });
   for (const key of ['prototype.rewardBindings', 'working.reception', 'voting.policy', 'lifecycle.clean', 'round.transport:r', 'test.remote'])
@@ -87,4 +87,20 @@ test('сховішча сакрэтаў: часовыя збоі памочні�
   await vault.set('obsPassword', 'x');
   assert.equal(writes, 1);
   assert.equal(await vault.get('obsPassword'), 'x');
+});
+
+test('міграцыя v6 → v7: назвы гульняў у адказах чата без двукоссяў', t => {
+  const dir = tempDir(), path = join(dir, 'obs-bot.sqlite');
+  const old = new Store(path);
+  old.set('settings', { replies: { enabled: true, templates: { winner: 'Перамагла «{title}» — {score} талераў', accepted_add: 'гульня "{title}" дададзена', entry_missing: 'не знойдзена' } }, obs: { url: 'ws://127.0.0.1:4455' } });
+  old.db.exec("INSERT INTO entries VALUES ('e', 'Stray', 'stray', 700, 1, 1, '{}')");
+  old.db.exec('PRAGMA user_version=6');
+  old.close();
+  const s = new Store(path);
+  t.after(() => s.close());
+  assert.equal(s.version(), 7);
+  const settings = s.get('settings');
+  assert.deepEqual(settings.replies.templates, { winner: 'Перамагла {title} — {score} талераў', accepted_add: 'гульня {title} дададзена', entry_missing: 'не знойдзена' });
+  assert.equal(settings.obs.url, 'ws://127.0.0.1:4455');
+  assert.equal(s.db.prepare("SELECT score FROM entries WHERE id='e'").get().score, 700);
 });

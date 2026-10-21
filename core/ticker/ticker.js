@@ -73,6 +73,21 @@ export class Ticker {
     });
   }
 
+  /**
+   * Новая аб’ява зверху спіса і адразу ў эфір (напрыклад, пераможца галасавання).
+   * Аб’ява застаецца ў спісе — стрымер выдаляе яе сам. Калі спіс поўны (40), толькі паказваецца.
+   */
+  announce(text) {
+    validateText(text, 2000);
+    return this.commit(() => {
+      const config = this.config();
+      const id = randomUUID();
+      if (config.announcements.length < 40) this.store.set('ticker.config', { ...config, announcements: [{ id, text }, ...config.announcements] });
+      this.db.exec("UPDATE ticker_jobs SET state='superseded' WHERE kind='automatic' AND state='queued'");
+      return { id: this.queue('manual', text, { announcement: id }) };
+    });
+  }
+
   retry() {
     this.fault = null;
     return this.commit(() => { this.db.exec("UPDATE ticker_jobs SET state='queued',failures=0 WHERE state='waiting'"); return { retried: true }; });
