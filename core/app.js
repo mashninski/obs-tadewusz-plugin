@@ -19,6 +19,7 @@ import { tickerSourceStatus } from './obs/ticker-source.js';
 import { Obs } from './obs/obs.js';
 import { Steam } from './steam/steam.js';
 import { MusicBridge } from './music/bridge.js';
+import { LegacyMusicRewards } from './music/legacy-rewards.js';
 import { replyDefinitions, replyPlaceholders } from './chat/templates.js';
 import { startServer } from './http/server.js';
 import { routes } from './http/routes.js';
@@ -89,6 +90,8 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     }
   };
 
+  const legacyMusic = new LegacyMusicRewards({ store, fetchImpl, log });
+
   const run = serialQueue();
   eventsub.onEvent((type, event, messageId) => run(async () => {
     try {
@@ -152,7 +155,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     port, webRoot, session, version, log,
     ...routes({
       store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications, obs,
-      steam, music, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
+      steam, music, legacyMusic, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
     }),
   }).catch(async error => {

@@ -88,6 +88,8 @@ export interface CoreState {
     reception: { wanted: boolean; accepting: boolean; enabled: boolean | null; reward: string | null; error: string | null };
   };
   twitch: { state: 'disconnected' | 'connecting' | 'connected' | 'error'; error: string | null; login: string | null; flow: boolean };
+  /** Засталіся ўзнагароды музыкі ад ранейшага асобнага прыкладання. */
+  legacyMusicRewards: boolean;
   eventsub: 'off' | 'connecting' | 'connected' | 'disconnected';
   obs: { connected: boolean; streaming: boolean; error: string | null };
   steam: { catalog: string; library: string };

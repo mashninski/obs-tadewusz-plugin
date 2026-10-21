@@ -56,6 +56,7 @@ function TwitchConnection({ state, music }: { state: CoreState; music: DockContr
           <Row label="Узнагароды музыкі" tone={musicTwitch.problem ? 'bad' : ''}>
             {musicTwitch.status === 'ok' ? (musicTwitch.problem ? musicProblem(musicTwitch.problem) : 'гатовыя') : musicTwitch.status === 'error' ? musicProblem(musicTwitch.problem) : 'чакаюць музыку'}
           </Row>
+          {state.legacyMusicRewards && <LegacyMusicRewards />}
           <div class="row-actions">
             <button class="btn" onClick={() => confirm('Адключыць Twitch? Усе ўзнагароды праграмы стануць на паўзу, пакуль вы не ўвайдзеце зноў.')
               && run(() => api('/api/twitch/disconnect'), 'Twitch адключаны')}>Адключыць</button>
@@ -82,6 +83,46 @@ function TwitchConnection({ state, music }: { state: CoreState; music: DockContr
       )}
       <Notice notice={notice} />
     </Section>
+  );
+}
+
+/**
+ * Аднаразова пры пераездзе: старыя ўзнагароды музыкі створаны іншым Twitch-прыкладаннем (spotify-бот),
+ * таму выдаліць іх можна толькі ўваходам пад тым жа Client ID.
+ */
+function LegacyMusicRewards() {
+  const { notice, run } = useAction();
+  const [code, setCode] = useState<{ uri: string; code: string } | null>(null);
+  useEffect(() => {
+    if (!code) return;
+    const id = setInterval(async () => {
+      try {
+        const result = await api<{ removed?: number }>('/api/music/legacy/poll');
+        if (result.removed !== undefined) { setCode(null); refresh(); }
+      } catch (error) {
+        setCode(null);
+        alert(errorText(error));
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [code]);
+  return (
+    <div class="legacy">
+      <p class="small bad">У канале засталіся ўзнагароды музыкі ад ранейшага spotify-бота. Іх можа выдаліць толькі тое прыкладанне — увайдзіце адзін раз праз яго, і праграма выдаліць іх (балы за незавершаныя замовы вернуцца), а потым створыць новыя.</p>
+      {code ? (
+        <>
+          <div class="device-code">{code.code}</div>
+          <div class="row-actions"><button class="btn primary" onClick={() => window.open(code.uri, '_blank')}>Адкрыць twitch.tv/activate</button></div>
+        </>
+      ) : (
+        <div class="row-actions">
+          <button class="btn" onClick={() => run(async () => { const flow = await api<{ uri: string; code: string }>('/api/music/legacy/start'); setCode(flow); window.open(flow.uri, '_blank'); }, '')}>
+            Выдаліць старыя ўзнагароды музыкі
+          </button>
+        </div>
+      )}
+      <Notice notice={notice} />
+    </div>
   );
 }
 

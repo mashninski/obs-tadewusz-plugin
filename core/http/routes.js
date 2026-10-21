@@ -6,7 +6,7 @@ const id = value => { if (typeof value !== 'string' || !value || value.length > 
 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications,
-    obs, steam, music, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl } = ctx;
+    obs, steam, music, legacyMusic, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl } = ctx;
 
   const state = () => {
     const vote = voting.snapshot();
@@ -16,6 +16,7 @@ export function routes(ctx) {
       reception: votingReception.snapshot(),
       ticker: { ...ticker.snapshot(), reception: tickerReception.snapshot() },
       twitch: { ...twitch.status, login: twitch.identity?.login ?? null, flow: !!twitch.flow },
+      legacyMusicRewards: !!legacyMusic.clientId(),
       eventsub: eventsub.state,
       obs: obs.state,
       steam: steam.state,
@@ -173,6 +174,8 @@ export function routes(ctx) {
 
     // --- Музыка ---
     '/api/music/helix': body => music.helix(body),
+    '/api/music/legacy/start': () => legacyMusic.start(),
+    '/api/music/legacy/poll': () => legacyMusic.poll(),
     '/api/music/import/done': async () => { await vault.set('musicImport', null); return { done: true }; },
   };
 
