@@ -1,13 +1,13 @@
 // Укладка «Галасаванне»: прыём пакупак, рэйтынг пазіцый, раўнд і новы раўнд з пераносам балаў.
 import { useEffect, useState } from 'preact/hooks';
-import { api, run, type CoreState, type Entry } from './core';
+import { api, errorText, run, type CoreState, type Entry } from './core';
 import { Card, Hero, IconButton, points } from './ui';
 
 const AVAILABILITY: Record<string, string> = { absent: 'няма ў стрымера', error: 'памылка праверкі' };
 
 function status(state: CoreState): { tone: 'good' | 'bad' | 'wait' | 'off'; title: string; detail: string } {
   const r = state.reception, round = state.vote.status;
-  if (round === 'finalizing') return { tone: 'wait', title: 'Раўнд завяршаецца', detail: state.reception.error ? `Чакае: ${state.reception.error}` : 'Праграма даганяе пакупкі з Twitch' };
+  if (round === 'finalizing') return { tone: 'wait', title: 'Раўнд завяршаецца', detail: state.reception.error ? `Чакае: ${errorText(new Error(state.reception.error))}` : 'Праграма даганяе пакупкі з Twitch' };
   if (round === 'closed') return { tone: 'off', title: 'Раўнд завершаны', detail: 'Пачніце новы раўнд унізе' };
   if (state.twitch.state !== 'connected') return { tone: 'bad', title: 'Twitch не падключаны', detail: 'Укладка «Падключэнні»' };
   if (r.expectedRewards !== r.rewards) return { tone: 'bad', title: 'Узнагароды не створаны', detail: 'Націсніце «Запусціць» — праграма створыць іх' };

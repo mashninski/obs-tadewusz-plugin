@@ -176,6 +176,7 @@ const ERRORS: Record<string, string> = {
   round_finalizing: 'Вынік яшчэ чакае зверкі з Twitch',
   countdown_expired: 'Час галасавання скончыўся · Вынік чакае зверкі',
   external_cancel_review: 'Спачатку разбярыце знешняе скасаванне (вышэй)',
+  finalization_outbox_pending: 'Twitch яшчэ не пацвердзіў апошнія пакупкі',
   fulfillment_pending: 'Пацвярджэнне пакупкі ў Twitch яшчэ не завершана · Паўтарыце праз хвіліну',
   review_missing: 'Разбор ужо закрыты',
   display_headlines: 'Загалоўкі: да 20 радкоў па 120 знакаў',

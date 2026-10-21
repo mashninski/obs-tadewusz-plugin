@@ -97,7 +97,7 @@ if (typeof document !== 'undefined') {
   const viewport = document.getElementById('viewport'), track = document.getElementById('track');
   const card = document.getElementById('statusCard'), stage = document.getElementById('messageStage');
   const slots = [...stage.children], scroll = new ScrollLoop(), banner = new BannerCycle();
-  let countdown = null, serverOffset = 0;
+  let countdown = null, winner = null, serverOffset = 0;
   let previous = '', speed = 24, fetching = false, alertId = null, audio, messageKey = '', slot = 0, generation = 0;
   let titleMotions = [], headline = null, headlineAction = false, headlineGeometry = '';
   const ticker = new HeadlineTicker();
@@ -164,6 +164,7 @@ if (typeof document !== 'undefined') {
       document.documentElement.style.setProperty('--header-opacity', display.headerOpacity ?? .85);
       document.documentElement.style.setProperty('--list-opacity', display.listOpacity ?? .75);
       countdown = state.vote.status !== 'closed' ? state.vote.deadline : null;
+      winner = state.vote.winner ? { key: `winner:${state.vote.roundId}`, text: state.vote.winner, action: false } : null;
       serverOffset = state.vote.serverNow - Date.now();
       document.body.style.fontFamily = display.font; document.body.style.fontSize = display.size + 'px'; document.body.style.color = display.color;
       document.getElementById('overlay').style.width = Math.min(display.width, Math.max(0, innerWidth - 64)) + 'px'; viewport.style.maxHeight = display.height + 'vh';
@@ -180,7 +181,11 @@ if (typeof document !== 'undefined') {
     finally { fetching = false; }
   }
   function renderMessage(now) {
-    if (!countdown) return message(banner.tick(now));
+    if (!countdown) {
+      // Абвестка (у тым ліку пра пераможцу) ідзе як звычайна, а замест загалоўкаў — пераможца, пакуль раўнд закрыты.
+      const value = banner.tick(now);
+      return message(winner && !value.action ? winner : value);
+    }
     const seconds = Math.max(0, Math.ceil((countdown.due - (Date.now() + serverOffset)) / 1000));
     const time = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`;
     // Вузел таймера стабільны: звычайная змена загалоўкаў яго не хавае.

@@ -41,8 +41,11 @@ export function routes(ctx) {
       const vote = voting.snapshot(), display = settings().display, selection = store.get('display.selection', null);
       const headlineActive = selection && selection.at + display.headlineDuration * 1000 > Date.now();
       const countdown = vote.deadline && vote.status !== 'closed';
+      // Пасля завяршэння пераможца застаецца ў шапцы оверлея да новага раўнда.
+      const won = vote.status === 'closed' ? vote.result?.ranked?.find(e => e.id === vote.result.winnerId) : null;
       return {
-        vote: { status: vote.status, deadline: vote.deadline, serverNow: vote.serverNow, entries: vote.entries.map(e => ({ code: e.code, title: e.title, score: e.score, availability: e.availability })) },
+        vote: { roundId: vote.roundId, status: vote.status, deadline: vote.deadline, serverNow: vote.serverNow,
+          winner: won ? `Пераможца: ${won.title} · ${won.score}` : null, entries: vote.entries.map(e => ({ code: e.code, title: e.title, score: e.score, availability: e.availability })) },
         display, notification: countdown || headlineActive ? null : notifications.current(), headlineSelection: selection,
       };
     },
