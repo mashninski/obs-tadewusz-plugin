@@ -1,5 +1,6 @@
 // Сувязь дока з ядром праграмы: стан (апытанне) і каманды.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { toast } from './ui';
 
 export interface Entry {
   id: string;
@@ -206,25 +207,53 @@ export function errorText(error: unknown): string {
   return ERRORS[code] ?? `Дзеянне не выканана (${code})`;
 }
 
-/** Выканаць каманду, паказаць вынік у радку паведамленняў і адразу абнавіць стан. */
-export function useAction() {
-  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
-  useEffect(() => {
-    if (!notice) return;
-    const id = setTimeout(() => setNotice(null), notice.error ? 8000 : 3000);
-    return () => clearTimeout(id);
-  }, [notice]);
-  const run = async <T,>(fn: () => Promise<T>, success = 'Гатова'): Promise<T | null> => {
+/** Выканаць каманду: вынік — усплывальным паведамленнем, стан абнаўляецца адразу. `null` — памылка. */
+export async function run<T>(fn: () => Promise<T>, success = 'Гатова'): Promise<T | null> {
+  try {
+    const result = await fn();
+    toast(success);
+    refresh();
+    return result;
+  } catch (error) {
+    toast(errorText(error), true);
+    refresh();
+    return null;
+  }
+}
+
+/**
+ * Чарнавік, які захоўваецца сам праз імгненне пасля праўкі (як аб’явы радка і налады музыкі).
+ * Пакуль змены не захаваныя, апытанне ядра іх не перазапісвае. `ready: false` — значэнне яшчэ няпоўнае, не захоўваць.
+ */
+export function useDraft<T>(saved: T, persist: (value: T) => Promise<unknown>, delay = 700) {
+  const [draft, setDraft] = useState(saved);
+  const dirty = useRef(false);
+  const pending = useRef<{ value: T; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const save = useRef(persist);
+  save.current = persist;
+  useEffect(() => { if (!dirty.current) setDraft(saved); }, [JSON.stringify(saved)]);
+
+  const flush = async () => {
+    const job = pending.current;
+    if (!job) return;
+    clearTimeout(job.timer);
+    pending.current = null;
     try {
-      const result = await fn();
-      if (success) setNotice({ text: success, error: false });
+      await save.current(job.value);
+      if (!pending.current) dirty.current = false;
       refresh();
-      return result;
     } catch (error) {
-      setNotice({ text: errorText(error), error: true });
-      refresh();
-      return null;
+      toast(errorText(error), true);
     }
   };
-  return { notice, run };
+  // Пераход на іншую ўкладку не губляе апошнюю праўку.
+  useEffect(() => () => void flush(), []);
+
+  const update = (next: T, ready = true) => {
+    dirty.current = true;
+    setDraft(next);
+    if (pending.current) clearTimeout(pending.current.timer);
+    pending.current = ready ? { value: next, timer: setTimeout(() => void flush(), delay) } : null;
+  };
+  return [draft, update] as const;
 }

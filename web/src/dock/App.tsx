@@ -1,7 +1,7 @@
 // Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, падключэнні і налады.
 import { useEffect, useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
-import { MusicSettings } from '../music/ui/dock/MusicSettings';
+import { MusicHero, MusicRules, MusicSound } from '../music/ui/dock/MusicSettings';
 import { PlayerTab } from '../music/ui/dock/PlayerTab';
 import { useStore } from '../music/ui/shared/hooks';
 import { ConnectionsTab } from './ConnectionsTab';
@@ -9,7 +9,7 @@ import { useCore } from './core';
 import { SettingsTab } from './SettingsTab';
 import { StatusTab } from './StatusTab';
 import { TickerTab } from './TickerTab';
-import { Dot } from './ui';
+import { Dot, Hero, toast, Toasts } from './ui';
 import { VotingTab } from './VotingTab';
 
 const TABS = [
@@ -32,6 +32,9 @@ export function App({ music }: { music: DockController }) {
   const [tab, setTab] = useState<TabId>(tabFromHash);
   const state = useCore();
   const spotify = useStore(music.spotify);
+
+  // Паведамленні музыкі (замова адхілена, Spotify не адказаў…) — тымі ж усплывальнымі паведамленнямі, што і ўвесь док.
+  useEffect(() => music.notice.subscribe((n) => n && toast(n.text, n.kind === 'error')), [music]);
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash());
@@ -66,15 +69,17 @@ export function App({ music }: { music: DockController }) {
       </header>
       <main class="content">
         {!state && tab !== 'music' ? (
-          <p class="notice error">Праграма не адказвае. Яна запускаецца разам з OBS — праверце, ці ўключаны скрыпт Tadewusz у «Інструменты → Скрыпты».</p>
+          <Hero tone="bad" title="Праграма не адказвае" detail="Яна запускаецца разам з OBS — праверце скрыпт Tadewusz у «Інструменты → Скрыпты»" />
         ) : (
           <>
             {tab === 'voting' && state && <VotingTab state={state} />}
             {tab === 'ticker' && state && <TickerTab state={state} />}
             {tab === 'music' && (
               <>
+                <MusicHero controller={music} />
                 <PlayerTab controller={music} />
-                <MusicSettings controller={music} />
+                <MusicRules controller={music} />
+                <MusicSound controller={music} />
               </>
             )}
             {tab === 'connections' && state && <ConnectionsTab state={state} music={music} />}
@@ -83,6 +88,7 @@ export function App({ music }: { music: DockController }) {
           </>
         )}
       </main>
+      <Toasts />
     </div>
   );
 }

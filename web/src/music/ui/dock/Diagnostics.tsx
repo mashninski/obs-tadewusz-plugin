@@ -1,4 +1,4 @@
-// Укладка «Праверка»: стан бота, Spotify, Twitch і OBS — коратка, радкамі «назва — значэнне».
+// Тэхнічныя звесткі музыкі для ўкладкі «Стан»: запіс стрыму без музыкі і падрабязнасці плэера.
 
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
@@ -32,7 +32,8 @@ function YouTubeBlock({ controller }: { controller: DockController }) {
   const alive = youtube.playerSeenAt > 0 && Date.now() - youtube.playerSeenAt < PLAYER_ALIVE_MS;
   const audio = chosen || (youtube.overlayAudio ? youtube.overlaySource : '');
   return (
-    <Section title={t('diag.youtube')} help={t('diag.youtube.help')}>
+    <>
+      <h3 class="kv-group" title={t('diag.youtube.help')}>{t('diag.youtube')}</h3>
       <Row label={t('diag.youtube.player')} tone={alive ? 'good' : 'bad'}>
         {alive ? t('diag.youtube.player.ok') : t('diag.youtube.player.none')}
       </Row>
@@ -63,7 +64,7 @@ function YouTubeBlock({ controller }: { controller: DockController }) {
           <p class="muted small">{youtube.lastError}</p>
         </>
       ) : null}
-    </Section>
+    </>
   );
 }
 
@@ -92,7 +93,7 @@ const reasonText = (r: VodReason) => t(`vod.reason.${r.code}`, 'source' in r ? {
 const verdictTone = (v: Verdict): Tone => (v === 'safe' ? 'good' : v === 'leak' ? 'bad' : 'muted');
 
 /** Запіс стрыму без музыкі: ці трапяць Spotify і відэа ў VOD Twitch, чаму і кнопка «Наладзіць». */
-function VodBlock({ controller }: { controller: DockController }) {
+export function VodCard({ controller }: { controller: DockController }) {
   const vod = useStore(controller.vod);
   const obs = useStore(controller.obs);
   const [confirm, setConfirm] = useState(false);
@@ -114,7 +115,7 @@ function VodBlock({ controller }: { controller: DockController }) {
     ) : null;
 
   return (
-    <Section title={t('diag.vod')} help={t('diag.vod.help')} actions={actions}>
+    <Section title={t('diag.vod')} help={t('diag.vod.help')} actions={actions} collapsible open={report?.spotify === 'leak' || report?.video === 'leak'}>
       {!connected ? (
         <p class="muted small">{t('diag.vod.noObs')}</p>
       ) : !report ? (
@@ -171,7 +172,7 @@ function VodBlock({ controller }: { controller: DockController }) {
   );
 }
 
-export function DiagnosticsTab({ controller }: { controller: DockController }) {
+export function MusicDiagnostics({ controller }: { controller: DockController }) {
   useNow(1000);
   const channel = useStore(controller.channel);
   const obs = useStore(controller.obs);
@@ -186,36 +187,27 @@ export function DiagnosticsTab({ controller }: { controller: DockController }) {
   const eventsTone: Tone = twitch.events === 'ok' ? 'good' : twitch.events === 'off' ? 'bad' : 'muted';
 
   return (
-    <div class="diagnostics">
-      <Section title={t('diag.brain')} help={t('diag.brain.help')}>
-        <Row label={t('diag.brain.where')} tone={where === 'none' ? 'bad' : ''}>
-          {t(`diag.brain.where.${where}` as MessageKey)}
+    <Section title="Музыка · падрабязнасці" collapsible help={t('diag.brain.help')}>
+      <h3 class="kv-group">{t('diag.brain')}</h3>
+      <Row label={t('diag.brain.where')} tone={where === 'none' ? 'bad' : ''}>
+        {t(`diag.brain.where.${where}` as MessageKey)}
+      </Row>
+      {leader && <Row label={t('diag.brain.since')}>{clock(leader.since)}</Row>}
+      <Row label={t('diag.brain.version')}>{__APP_VERSION__}</Row>
+      {!controller.locksSupported && (
+        <Row label={t('diag.brain.choice')} tone="bad">
+          {t('diag.brain.dockOnly')}
         </Row>
-        {leader && <Row label={t('diag.brain.since')}>{clock(leader.since)}</Row>}
-        <Row label={t('diag.brain.version')}>{__APP_VERSION__}</Row>
-        {!controller.locksSupported && (
-          <Row label={t('diag.brain.choice')} tone="bad">
-            {t('diag.brain.dockOnly')}
-          </Row>
-        )}
-        {conflicts > 0 && (
-          <Row label={t('diag.brain.conflicts')} tone="bad">
-            {conflicts}
-          </Row>
-        )}
-      </Section>
-
-      {spotify.status !== 'off' && (
-        <Section title={t('diag.spotify')} help={t('diag.spotify.help')}>
-          <Row label={t('diag.spotify.requests')}>{spotify.requestsToday}</Row>
-          <Row label={t('diag.spotify.window')} tone={windowTone}>
-            {t(`diag.spotify.window.${spotify.windowWatch}`)}
-          </Row>
-        </Section>
+      )}
+      {conflicts > 0 && (
+        <Row label={t('diag.brain.conflicts')} tone="bad">
+          {conflicts}
+        </Row>
       )}
 
       {twitch.status !== 'off' && (
-        <Section title={t('diag.twitch')} help={t('diag.twitch.help')}>
+        <>
+          <h3 class="kv-group" title={t('diag.twitch.help')}>{t('diag.twitch')}</h3>
           <Row label={t('diag.twitch.events')} tone={eventsTone}>
             {t(`diag.twitch.events.${twitch.events}`)}
           </Row>
@@ -225,27 +217,34 @@ export function DiagnosticsTab({ controller }: { controller: DockController }) {
           <Row label={t('diag.twitch.pending')} tone={twitch.pending ? 'bad' : ''}>
             {twitch.pending}
           </Row>
-        </Section>
+        </>
       )}
 
-      <VodBlock controller={controller} />
+      {spotify.status !== 'off' && (
+        <>
+          <h3 class="kv-group" title={t('diag.spotify.help')}>{t('diag.spotify')}</h3>
+          <Row label={t('diag.spotify.requests')}>{spotify.requestsToday}</Row>
+          <Row label={t('diag.spotify.window')} tone={windowTone}>
+            {t(`diag.spotify.window.${spotify.windowWatch}`)}
+          </Row>
+        </>
+      )}
 
       <YouTubeBlock controller={controller} />
 
-      <Section title={t('diag.obs')} help={t('diag.obs.help')}>
-        <Row label={t('diag.obs.page')}>{env.inObs ? env.version : t('diag.obs.notObs')}</Row>
-        <Row label="obs-websocket" tone={obs.version ? '' : 'muted'}>
-          {obs.version || t('diag.none')}
-        </Row>
-        <Row label={t('diag.obs.channel')} tone={channel.mode === 'none' ? 'muted' : ''}>
-          {t(`diag.obs.channel.${channel.mode}`)}
-        </Row>
-        <Row label={t('diag.obs.sent')}>{channel.sent}</Row>
-        <Row label={t('diag.obs.errors')} tone={channel.errors ? 'bad' : ''}>
-          {channel.errors}
-        </Row>
-        {channel.lastError && <p class="muted small mono">{channel.lastError}</p>}
-      </Section>
-    </div>
+      <h3 class="kv-group" title={t('diag.obs.help')}>{t('diag.obs')}</h3>
+      <Row label={t('diag.obs.page')}>{env.inObs ? env.version : t('diag.obs.notObs')}</Row>
+      <Row label="obs-websocket" tone={obs.version ? '' : 'muted'}>
+        {obs.version || t('diag.none')}
+      </Row>
+      <Row label={t('diag.obs.channel')} tone={channel.mode === 'none' ? 'muted' : ''}>
+        {t(`diag.obs.channel.${channel.mode}`)}
+      </Row>
+      <Row label={t('diag.obs.sent')}>{channel.sent}</Row>
+      <Row label={t('diag.obs.errors')} tone={channel.errors ? 'bad' : ''}>
+        {channel.errors}
+      </Row>
+      {channel.lastError && <p class="muted small mono">{channel.lastError}</p>}
+    </Section>
   );
 }

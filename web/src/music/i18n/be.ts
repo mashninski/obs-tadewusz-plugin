@@ -6,7 +6,6 @@
 export const be = {
 
 
-  'help.label': 'Падказка',
 
 
   'player.nothing': 'Нічога не грае',

@@ -1,6 +1,5 @@
 import { render } from 'preact';
 import { createDockController } from '../music/ui/dock/controller';
-import '../music/ui/dock/dock.css';
 import './dock.css';
 import { watchForUpdates } from '../music/ui/shared/update';
 import { safeLocalStorage } from '../music/core/settings';

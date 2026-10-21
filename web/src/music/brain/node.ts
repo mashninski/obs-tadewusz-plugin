@@ -61,6 +61,16 @@ export interface BrainNodeOptions {
   videoProbe?: VideoProbe;
   videoSilenceMs?: number;
   videoStartMs?: number;
+  /**
+   * Ці можа гэтая старонка стаць мозгам. Па змаўчанні — толькі ўнутры OBS (або з ?brain=1 пры распрацоўцы):
+   * док, адкрыты ў звычайным браўзеры, толькі паказвае стан і не спрачаецца з OBS за Spotify і ўзнагароды.
+   */
+  canLead?: boolean;
+}
+
+function insideObs(): boolean {
+  if (typeof window === 'undefined') return true;
+  return 'obsstudio' in window || new URLSearchParams(location.search).has('brain');
 }
 
 export function createBrainNode(options: BrainNodeOptions) {
@@ -229,8 +239,10 @@ export function createBrainNode(options: BrainNodeOptions) {
       }, 1000);
       stopFns.push(() => clearInterval(staleCheck));
 
-      if (locks) election = electLeader(locks, becomeLeader, options.lockName);
-      else if (options.page === 'dock') becomeLeader();
+      if (options.canLead ?? insideObs()) {
+        if (locks) election = electLeader(locks, becomeLeader, options.lockName);
+        else if (options.page === 'dock') becomeLeader();
+      }
       bus.post({ kind: 'hello' });
     },
 

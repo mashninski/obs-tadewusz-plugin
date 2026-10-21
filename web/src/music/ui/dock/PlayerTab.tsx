@@ -1,6 +1,6 @@
 // Укладка «Плэер»: што грае, кіраванне, «+» у «Любімыя трэкі», чарга замоў.
 
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { isVideo, type QueueItem, type Track } from '../../core/types';
 import { formatClock, t } from '../../i18n';
 import { canSave } from '../../providers/spotify/map';
@@ -22,16 +22,9 @@ import { Section } from './Section';
 
 export function PlayerTab({ controller }: { controller: DockController }) {
   const state = useStore(controller.player);
-  const notice = useStore(controller.notice);
   const spotify = useStore(controller.spotify);
   const spotifyOn = spotify.status !== 'off';
   const current = state.current;
-
-  useEffect(() => {
-    if (!notice) return;
-    const id = setTimeout(() => controller.notice.set(null), 5000);
-    return () => clearTimeout(id);
-  }, [notice, controller]);
 
   const progress = current ? Math.min(1, state.progressMs / current.track.durationMs) : 0;
   const video = isVideo(current?.track);
@@ -96,8 +89,6 @@ export function PlayerTab({ controller }: { controller: DockController }) {
         </div>
       </section>
 
-      {notice && <div class={`notice ${notice.kind}`}>{notice.text}</div>}
-
       <Section
         title={t('player.requests')}
         help={t('player.requests.help')}
@@ -109,7 +100,7 @@ export function PlayerTab({ controller }: { controller: DockController }) {
         }
       >
         {state.requests.length === 0 ? (
-          <p class="muted small">{t('player.requests.empty')}</p>
+          <p class="empty-line">{t('player.requests.empty')}</p>
         ) : (
           <ol class="queue">
             {state.requests.map((item, i) => (
@@ -120,7 +111,7 @@ export function PlayerTab({ controller }: { controller: DockController }) {
       </Section>
 
       <Section title={t('player.context')} help={t('player.context.help')}>
-        {state.context.length === 0 && <p class="muted small">{t('player.context.empty')}</p>}
+        {state.context.length === 0 && <p class="empty-line">{t('player.context.empty')}</p>}
         <ol class="queue context">
           {state.context.slice(0, 5).map((item) => (
             <li key={item.key} class="row">

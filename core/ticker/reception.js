@@ -3,6 +3,9 @@
 // глядач не плаціць за паведамленне, якое ніхто не пакажа.
 import { errorCode } from '../util/log.js';
 
+/** Свой колер фону ўзнагароды: гледачы адразу адрозніваюць яе ад узнагарод галасавання і музыкі. */
+export const TICKER_REWARD_COLOR = '#4A1F3D';
+
 const RECONCILE_EVERY_MS = 300_000;
 const BLOCKING = ['remote_400', 'remote_401', 'remote_403', 'remote_404', 'refund_unavailable', 'redemption_not_found'];
 
@@ -53,7 +56,7 @@ export class TickerReception {
   async syncReward() {
     await this.twitch.credentials();
     const account = this.twitch.account(), c = this.ticker.config(), remote = await this.twitch.rewards();
-    const body = { title: c.title, prompt: c.prompt, cost: c.cost, is_user_input_required: true, should_redemptions_skip_request_queue: false };
+    const body = { title: c.title, prompt: c.prompt, cost: c.cost, background_color: TICKER_REWARD_COLOR, is_user_input_required: true, should_redemptions_skip_request_queue: false };
     const existing = remote.find(r => r.id === this.rewardId());
     if (existing) {
       await this.twitch.updateReward(existing.id, body);
