@@ -32,14 +32,14 @@ const START_MS = 1100;
 /** Каля гэтага часу пасля «стаў бачным» кліп сапраўды пачынае іграць (па кадрах у OBS — 0,5–1 с). */
 const PLAYS_AFTER_MS = 500;
 /** Уваход карткі і ўваход кліпа — хуткія касыя зрэзы. */
-const CARD_IN_MS = 280;
+const CARD_IN_MS = 480;
 /**
  * Стары плэер спачатку пераводзіцца на пустую старонку і толькі потым выдаляецца, а новы стартуе пасля гэтага.
  * Калі выдаліць плэер са гукам на хаду (ці запусціць новы адначасова), гук у OBS «спатыкаецца»,
  * і наступны кліп ідзе рыўкамі (замерана ў OBS 2026-10-24).
  */
 const QUIET_MS = 300;
-const WIPE_MS = 300;
+const WIPE_MS = 700;
 /** Картка накрывае кліп крыху раней за канец — экран рэкамендацый Twitch не відаць. */
 const END_EARLY_MS = 450;
 /** Колькі першы кадр «праяўляецца» (першы кліп пасля актывацыі). */
@@ -286,24 +286,28 @@ function whenWarm(frame, fn) {
   check();
 }
 
-const easeOut = (t) => 1 - (1 - t) ** 3;
+const easeInOut = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** Касы зрэз злева направа: `p` 0…1 — колькі ўжо відаць. */
-const slash = (p) => {
-  const x = -24 + 148 * p;
-  return `polygon(-1% -1%, ${x + 12}% -1%, ${x - 12}% 101%, -1% 101%)`;
+/**
+ * Мяккі касы зрэз злева направа: маска з размытым краем (~150 px), `p` 0…1 — колькі ўжо відаць.
+ * Маска на плэеры, што ўжо грае, Twitch не перашкаджае (праверана ў OBS); пасля зрэзу яна здымаецца.
+ */
+const softSlash = (p) => {
+  const x = -30 + 160 * p;
+  return `linear-gradient(105deg, #000 ${x - 9}%, transparent ${x + 9}%)`;
 };
 
 function wipeIn(el, ms) {
   return new Promise((resolve) => {
     const start = performance.now();
+    const apply = (mask) => { el.style.maskImage = mask; el.style.webkitMaskImage = mask; };
     const step = (now) => {
       const t = Math.min(1, (now - start) / ms);
-      el.style.clipPath = t < 1 ? slash(easeOut(t)) : '';
+      apply(t < 1 ? softSlash(easeInOut(t)) : '');
       if (t < 1) requestAnimationFrame(step);
       else resolve();
     };
-    el.style.clipPath = slash(0);
+    apply(softSlash(0));
     requestAnimationFrame(step);
   });
 }
