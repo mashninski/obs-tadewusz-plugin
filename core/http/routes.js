@@ -1,12 +1,14 @@
 // API дока і оверлеяў.
 import { randomBytes } from 'node:crypto';
+import { ensureIntroScene } from '../obs/intro-scene.js';
 
 const bool = value => { if (typeof value !== 'boolean') throw new Error('value_format'); return value; };
 const id = value => { if (typeof value !== 'string' || !value || value.length > 100) throw new Error('value_format'); return value; };
 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications,
-    obs, steam, music, legacyMusic, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl } = ctx;
+    obs, steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
+    introSourceUrl } = ctx;
 
   const state = () => {
     const vote = voting.snapshot();
@@ -21,11 +23,12 @@ export function routes(ctx) {
       obs: obs.state,
       steam: steam.state,
       backups: backups.snapshot(),
+      intro: intro.snapshot(),
       history: store.history(),
       replyDefinitions, replyPlaceholders,
       urls: {
         dock: `${baseUrl()}/`, overlay: `${baseUrl()}/overlay`, ticker: `${baseUrl()}/ticker?source=${ticker.source}`,
-        music: `${baseUrl()}/music`, spotifyRedirect: `${baseUrl()}/callback.html`,
+        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`, spotifyRedirect: `${baseUrl()}/callback.html`,
       },
     };
   };
@@ -55,6 +58,11 @@ export function routes(ctx) {
         display, notification: countdown || headlineActive ? null : notifications.current(), headlineSelection: selection,
       };
     },
+    // Оверлей інтро: налады (апытанне), спіс кліпаў (калі змяніўся) і знак «сцэна стала актыўнай».
+    '/intro/state': () => intro.overlayState(),
+    '/intro/clips': () => intro.clips(),
+    // Актывацыя сцэны і кожныя ~5 хвілін, пакуль яна ў эфіры: абнавіць спіс кліпаў (не часцей за раз у хвіліну).
+    '/intro/activate': () => { intro.refresh().catch(() => {}); return { ok: true }; },
     '/steam/callback': async (url, res) => {
       try { await steam.callback(url.searchParams); } catch {}
       res.writeHead(303, { Location: '/' });
@@ -165,6 +173,16 @@ export function routes(ctx) {
     }),
     '/ticker/heartbeat': body => ticker.heartbeat(body),
     '/ticker/ack': body => ticker.acknowledge(body),
+
+    // --- Інтро ---
+    '/api/intro/config': body => intro.save(body),
+    '/api/intro/restart': () => intro.restartCountdown(),
+    '/api/intro/refresh': async () => {
+      await intro.refresh({ force: true });
+      if (intro.error) throw new Error(intro.error);
+      return intro.snapshot();
+    },
+    '/api/intro/scene': () => ensureIntroScene(obs, { url: introSourceUrl() }),
 
     // --- Steam ---
     '/api/steam/login': () => ({ uri: steam.loginUrl() }),

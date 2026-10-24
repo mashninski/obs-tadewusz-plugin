@@ -9,7 +9,7 @@ function status(state: CoreState): { tone: 'good' | 'bad' | 'wait' | 'off'; titl
   const r = state.reception, round = state.vote.status;
   if (round === 'finalizing') return { tone: 'wait', title: 'Раўнд завяршаецца', detail: state.reception.error ? `Чакае: ${errorText(new Error(state.reception.error))}` : 'Праграма даганяе пакупкі з Twitch' };
   if (round === 'closed') return { tone: 'off', title: 'Раўнд завершаны', detail: 'Пачніце новы раўнд унізе' };
-  if (state.twitch.state !== 'connected') return { tone: 'bad', title: 'Twitch не падключаны', detail: 'Укладка «Падключэнні»' };
+  if (state.twitch.state !== 'connected') return { tone: 'bad', title: 'Twitch не падключаны', detail: 'Сістэма → Падключэнне' };
   if (r.expectedRewards !== r.rewards) return { tone: 'bad', title: 'Узнагароды не створаны', detail: 'Націсніце «Запусціць» — праграма створыць іх' };
   if (!r.wanted || round === 'paused') return { tone: 'off', title: 'Галасаванне прыпынена', detail: 'Узнагароды схаваныя ад гледачоў' };
   if (!r.accepting) return { tone: 'wait', title: 'Падключэнне…', detail: 'Зверка пакупак з Twitch' };

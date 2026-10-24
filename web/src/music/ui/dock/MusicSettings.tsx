@@ -1,4 +1,4 @@
-// Музыка ў доку: правілы замоў, гук і відэа; падключэнні Spotify і YouTube (для ўкладкі «Падключэнні»).
+// Музыка ў доку: правілы замоў, гук і відэа; падключэнні Spotify і YouTube (для раздзела «Сістэма → Падключэнне»).
 
 import { useEffect, useState } from 'preact/hooks';
 import type { RequestRules } from '../../core/rules';
@@ -20,7 +20,7 @@ export function MusicHero({ controller }: { controller: DockController }) {
   // Пасля адкрыцця дока мозг адклікаецца не адразу — некалькі секунд гэта не праблема.
   const [settled, setSettled] = useState(false);
   useEffect(() => { const id = setTimeout(() => setSettled(true), 4000); return () => clearTimeout(id); }, []);
-  const goConnections = <button class="btn" onClick={() => (location.hash = 'connections')}>Падключэнні</button>;
+  const goConnections = <button class="btn" onClick={() => (location.hash = 'connections')}>Падключэнне</button>;
   if (!leader && !settled) return <Hero tone="wait" title="Падключэнне…" detail="Док чакае плэер музыкі" />;
   if (!leader) return <Hero tone="bad" title="Музыка не працуе" detail="Яна жыве ў оверлэі музыкі — праверце, ці ёсць ён у сцэне OBS" />;
   if (twitch.status === 'off') return <Hero tone="off" title="Замовы не прымаюцца" detail="Twitch не падключаны">{goConnections}</Hero>;

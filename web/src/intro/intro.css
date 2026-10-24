@@ -1,0 +1,272 @@
+/*
+ * Інтро — сцэна чакання 1920×1080. Палітра і шрыфт — як на mashninski.com: графітава-зялёны фон,
+ * слановая косць для тэксту, бірузовы акцэнт, прамыя вуглы. Загалоўкі — Manrope, адлік — JetBrains Mono.
+ */
+
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-cyrillic-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-latin-ext-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+20A0-20AB, U+20AD-20C0, U+A720-A7FF;
+}
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+}
+
+:root {
+  --base: #0a0f0d;
+  --base-2: #0d1916;
+  --sky: #093b33;
+  --glow: #176858;
+  --ivory: #ede6d8;
+  --ivory-dim: #8fa39a;
+  --accent: #4fb8b8;
+  --line: rgba(79, 184, 184, 0.28);
+  --pad: 72px;
+  --clip-w: 832px;
+  --clip-h: 468px;
+  --donations: 0px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--base);
+  color: var(--ivory);
+  font-family: Manrope, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Кадр заўсёды 1920×1080; у меншым акне (праверка ў браўзеры) ён маштабуецца цалкам. */
+#frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  transform-origin: 0 0;
+  transform: scale(var(--fit, 1));
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(9, 59, 51, 0.55), transparent 70%),
+    linear-gradient(160deg, var(--base-2) 0%, var(--base) 60%);
+}
+
+#topo { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+
+#grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+#stage {
+  position: absolute;
+  left: var(--pad);
+  right: var(--pad);
+  top: var(--pad);
+  bottom: calc(var(--pad) + var(--donations));
+  display: flex;
+  gap: 96px;
+}
+.with-donations { --donations: 100px; }
+
+/* ---------- Спасылкі ---------- */
+
+.links {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  --k: 1;
+}
+#linksTitle {
+  margin: 0 0 calc(44px * var(--k));
+  font-size: calc(68px * var(--k));
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+#linksTitle::after {
+  content: '';
+  display: block;
+  width: 72px;
+  height: 3px;
+  margin-top: calc(26px * var(--k));
+  background: var(--accent);
+}
+#links {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(28px * var(--k));
+}
+.link {
+  display: flex;
+  align-items: center;
+  gap: calc(28px * var(--k));
+}
+.link-text { min-width: 0; }
+.link-label {
+  font-size: calc(38px * var(--k));
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.link-url {
+  margin-top: calc(4px * var(--k));
+  font-size: calc(26px * var(--k));
+  font-weight: 500;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+.link:not(.has-label) .link-url { font-size: calc(34px * var(--k)); color: var(--ivory); font-weight: 600; }
+.qr {
+  flex: none;
+  width: calc(132px * var(--k));
+  height: calc(132px * var(--k));
+  padding: calc(8px * var(--k));
+  background: var(--ivory);
+}
+.qr svg { display: block; width: 100%; height: 100%; }
+
+/* ---------- Кліпы ---------- */
+
+.side {
+  flex: none;
+  width: var(--clip-w);
+  display: flex;
+  flex-direction: column;
+}
+.clip { position: relative; }
+.clip-glow {
+  position: absolute;
+  left: -220px;
+  right: -220px;
+  top: -200px;
+  bottom: -240px;
+  background: radial-gradient(closest-side, rgba(23, 104, 88, 0.55), rgba(23, 104, 88, 0.18) 55%, transparent);
+  pointer-events: none;
+}
+.clip-screen {
+  position: relative;
+  width: var(--clip-w);
+  height: var(--clip-h);
+  background: #050807;
+  outline: 1px solid var(--line);
+  overflow: hidden;
+}
+.clip-screen iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.clip-screen iframe.shown { opacity: 1; }
+.clip-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ivory-dim);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: radial-gradient(closest-side, rgba(9, 59, 51, 0.6), transparent);
+  transition: opacity 0.5s ease;
+}
+.clip-idle.hidden { opacity: 0; }
+.clip-caption {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-height: 34px;
+  margin-top: 16px;
+  font-size: 24px;
+  transition: opacity 0.5s ease;
+}
+.clip-caption.hidden { opacity: 0; }
+.clip-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-by { flex: none; color: var(--ivory-dim); font-weight: 500; font-size: 20px; }
+
+/* ---------- Адлік ---------- */
+
+.countdown {
+  position: relative;
+  margin-top: auto;
+  padding-top: 24px;
+  text-align: right;
+}
+.countdown-label {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ivory-dim);
+}
+.countdown-time {
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-weight: 500;
+  font-size: 168px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.finish {
+  font-size: 92px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ivory);
+  overflow-wrap: anywhere;
+  animation: finish-in 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes finish-in { from { opacity: 0; transform: translateY(16px); } }
+
+/* ---------- Данаты (пакуль заглушка) ---------- */
+
+.donations {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 0 var(--pad);
+  border-top: 1px solid var(--line);
+  background: rgba(10, 15, 13, 0.82);
+}
+.donations[hidden] { display: none; }
+.donations-title { font-size: 28px; font-weight: 800; }
+.donations-line { font-size: 24px; color: var(--ivory-dim); }

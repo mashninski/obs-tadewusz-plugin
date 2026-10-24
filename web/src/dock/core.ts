@@ -51,6 +51,23 @@ export interface TickerJob {
   generation?: number;
 }
 
+export interface IntroLink {
+  id: string;
+  url: string;
+  label: string;
+  qr: boolean;
+}
+
+export interface IntroConfig {
+  version: 1;
+  countdown: number;
+  finishText: string;
+  linksTitle: string;
+  links: IntroLink[];
+  clipPause: number;
+  donations: boolean;
+}
+
 export interface Settings {
   schemaVersion: number;
   replies: { enabled: boolean; templates: Record<string, string> };
@@ -95,10 +112,11 @@ export interface CoreState {
   obs: { connected: boolean; streaming: boolean; error: string | null };
   steam: { catalog: string; library: string };
   backups: { at: string | null; daily: string | null; error: string | null; location: string | null; external: string };
+  intro: { config: IntroConfig; clips: number; byViewers: number; fetchedAt: number | null; fetching: boolean; error: string | null };
   history: { id: number; at: string; event: string }[];
   replyDefinitions: Record<string, [string, string]>;
   replyPlaceholders: Record<string, string[]>;
-  urls: { dock: string; overlay: string; ticker: string; music: string; spotifyRedirect: string };
+  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; spotifyRedirect: string };
 }
 
 /** Каманда ядру. Памылка — `Error` з кодам (тэкст — праз `errorText`). */
@@ -153,7 +171,7 @@ const ERRORS: Record<string, string> = {
   core_unavailable: 'Праграма не адказвае · Праверце, ці адкрыты OBS',
   operation_failed: 'Дзеянне не выканана · Праверце падключэнні і журнал',
   network_unavailable: 'Няма сувязі з інтэрнэтам · Паспрабуйце пазней',
-  twitch_connect_required: 'Спачатку падключыце Twitch (укладка «Падключэнні»)',
+  twitch_connect_required: 'Спачатку падключыце Twitch (Сістэма → Падключэнне)',
   client_id_required: 'Увядзіце і захавайце Client ID',
   client_id: 'Client ID — толькі лацінскія літары і лічбы',
   oauth_expired: 'Код уваходу састарэў · Націсніце «Увайсці ў Twitch» яшчэ раз',
@@ -201,6 +219,16 @@ const ERRORS: Record<string, string> = {
   steam_library_private_or_unavailable: 'Бібліятэка Steam закрытая або недаступная',
   steam_identity: 'Уваход у Steam не пацверджаны',
   countdown_value: 'Таймер: ад 10 секунд да гадзіны',
+  obs_required: 'Спачатку падключыце OBS (Сістэма → Падключэнне)',
+  obs_disconnected: 'OBS не адказвае · Праверце падключэнне',
+  obs_request_timeout: 'OBS не адказаў за 4 секунды · Паўтарыце',
+  intro_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Інтро» іншага тыпу · Перайменуйце яе',
+  intro_countdown: 'Адлік: ад 10 секунд да 6 гадзін',
+  intro_finish_text: 'Надпіс на нулі: ад 1 да 80 знакаў',
+  intro_links_title: 'Загаловак спасылак: да 60 знакаў',
+  intro_clip_pause: 'Паўза паміж кліпамі: ад 0 да 120 секунд',
+  intro_links: 'Спасылак — не больш за 8',
+  intro_link: 'Праверце спасылку: адрас без прабелаў да 200 знакаў, подпіс да 60',
 };
 
 export function errorText(error: unknown): string {

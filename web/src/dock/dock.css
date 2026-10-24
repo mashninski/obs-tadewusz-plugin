@@ -567,3 +567,32 @@ details[open] > summary .chevron { transform: rotate(45deg); margin-bottom: 4px;
 .test-btn { opacity: 0.5; }
 .test-btn:hover { opacity: 1; }
 
+
+/* ---------- Сістэма: раздзелы-акардэоны ---------- */
+
+.group { margin-bottom: 14px; }
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 6px;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--line);
+}
+details.group > summary { list-style: none; cursor: pointer; }
+details.group > summary::-webkit-details-marker { display: none; }
+details.group:not([open]) > summary { margin-bottom: 0; }
+.group-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.group-summary { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; justify-content: flex-end; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.group-dots { display: inline-flex; gap: 4px; }
+.kv-pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+
+/* ---------- Інтро ---------- */
+
+.intro-link { align-items: flex-start !important; padding-top: 4px !important; padding-bottom: 4px !important; }
+.intro-link .handle, .intro-link .row-tools { margin-top: 2px; }
+.intro-link-fields { display: flex; flex-direction: column; gap: 1px; }
+.intro-link-fields input:first-child { font-weight: 600; }
+.mono-input { font-family: Consolas, monospace !important; font-size: 11.5px !important; color: var(--muted); }
+input.invalid { border-color: var(--danger) !important; }

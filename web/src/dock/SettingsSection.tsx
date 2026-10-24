@@ -1,4 +1,4 @@
-// Укладка «Налады»: узнагароды галасавання, загалоўкі і выгляд оверлея, адказы ў чат.
+// «Сістэма → Налады»: узнагароды галасавання, загалоўкі і выгляд оверлея, адказы ў чат.
 // Змены захоўваюцца самі праз імгненне пасля праўкі — як аб’явы радка і правілы музыкі.
 import { useState } from 'preact/hooks';
 import { api, run, useDraft, type CoreState, type Settings } from './core';
@@ -7,7 +7,7 @@ import { Card, IconButton, moveItem, NumberField, Switch, TextField, useSortable
 const parseCosts = (text: string) => text.split(/[,\s]+/).filter(Boolean).map(Number);
 const validCosts = (costs: number[]) => costs.length > 0 && costs.every((n) => Number.isInteger(n) && n > 0);
 
-export function SettingsTab({ state }: { state: CoreState }) {
+export function SettingsSection({ state }: { state: CoreState }) {
   const [draft, update] = useDraft<Settings>(state.settings, (settings) => api('/api/settings', settings));
   const display = (patch: Partial<Settings['display']>, ready = true) => update({ ...draft, display: { ...draft.display, ...patch } }, ready);
 

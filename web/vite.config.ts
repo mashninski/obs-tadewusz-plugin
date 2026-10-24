@@ -2,8 +2,8 @@ import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-// Старонкі: док, оверлеі (галасаванне, бягучы радок, музыка) і старонка вяртання са Spotify.
-const pages = ['dock', 'overlay', 'ticker', 'music', 'callback'];
+// Старонкі: док, оверлеі (галасаванне, бягучы радок, музыка, інтро) і старонка вяртання са Spotify.
+const pages = ['dock', 'overlay', 'ticker', 'music', 'intro', 'callback'];
 
 /** Версія зборкі — кароткі хэш commit (відаць на ўкладцы «Стан»; па ёй адкрытыя старонкі бачаць абнаўленне). */
 const version = (() => {
@@ -36,7 +36,7 @@ export default defineConfig({
     // Агульны код з ядром (../shared) па-за тэчкай web.
     fs: { allow: ['..'] },
     // Пры распрацоўцы API дае ядро, запушчанае побач (npm start).
-    proxy: { '/api': 'http://127.0.0.1:18745', '/overlay/state': 'http://127.0.0.1:18745', '/ticker/': 'http://127.0.0.1:18745' },
+    proxy: { '/api': 'http://127.0.0.1:18745', '/overlay/state': 'http://127.0.0.1:18745', '/ticker/': 'http://127.0.0.1:18745', '/intro/': 'http://127.0.0.1:18745' },
   },
   build: {
     target: 'es2022',

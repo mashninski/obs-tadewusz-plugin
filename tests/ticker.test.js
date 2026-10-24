@@ -37,7 +37,7 @@ test('стрымер спыніў паказ — балы вяртаюцца; п
   const job = beat().job;
   ticker.cancel({ id: job.id, attempt: job.attempt, generation: job.generation });
   assert.equal(s.db.prepare("SELECT target FROM ticker_outbox WHERE purchase='acc:p1'").get().target, 'CANCELED');
-  const late = ticker.ingest({ id: 'p2', reward: { id: 'tick', cost: 1000 }, status: 'UNFULFILLED', redeemed_at: new Date().toISOString(), user_input: 'x', user_name: 'V' },
+  const late = ticker.ingest({ id: 'p2', reward: { id: 'tick', cost: 1000 }, status: 'UNFULFILLED', redeemed_at: new Date(ticker.now()).toISOString(), user_input: 'x', user_name: 'V' },
     'm-p2', { account: 'acc', reward: 'tick', admitted: false });
   assert.equal(late.decision, 'rejected');
 });

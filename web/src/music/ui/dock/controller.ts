@@ -1,6 +1,6 @@
 // Музыка ў доку: удзельнік «мозгу» плюс тое, што ёсць толькі ў доку — уваход у Spotify і YouTube,
 // і адзнака для debug-оверлэя. Стан і каманды — праз BrainNode: мозг можа працаваць тут або ў оверлэі.
-// Уваход у Twitch і падключэнне OBS агульныя для ўсёй праграмы (укладка «Падключэнні»).
+// Уваход у Twitch і падключэнне OBS агульныя для ўсёй праграмы («Сістэма → Падключэнне»).
 
 import { safeLocalStorage } from '../../core/settings';
 import { createBrainNode } from '../../brain/node';
@@ -20,7 +20,7 @@ export function createDockController() {
     location.href = await startLogin(storage, clientId, redirectUri);
   }
 
-  /** Уваход у YouTube усёй старонкай дока; Google і YouTube вернуць на «Падключэнні». */
+  /** Уваход у YouTube усёй старонкай дока; Google і YouTube вернуць на «Падключэнне». */
   function signInYouTube(): void {
     const back = new URL(location.href);
     back.hash = 'connections';

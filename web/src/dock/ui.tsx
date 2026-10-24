@@ -1,6 +1,6 @@
 // Агульныя элементы дока: шапка ўкладкі, поля, пераключальнік, значкі, усплывальныя паведамленні, спіс з перацягваннем.
 import type { ComponentChildren, JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { InfoTip } from '../music/ui/dock/Section';
 
@@ -59,6 +59,51 @@ export function Hero({ tone, title, detail, children }: {
       </div>
       {children}
     </div>
+  );
+}
+
+// ---------- Раздзелы ўкладкі «Сістэма» ----------
+
+/**
+ * Раздзел-акардэон: загаловак з кароткай зводкай і стрэлкай, змест пад ім.
+ * `open` — як раздзел павінен стаяць сам па сабе (напрыклад, «разгорнуты, калі нешта не падключана»).
+ * Стрымер можа адкрыць або закрыць яго рукамі; калі `open` змяняецца (усё падключылася), ручны выбар скідаецца.
+ * `force` — лічыльнік: кожнае павелічэнне адкрывае раздзел і пракручвае да яго.
+ * Без `collapsible` раздзел заўсёды адкрыты.
+ */
+export function Group({ title, summary, open = true, collapsible, force = 0, children }: {
+  title: string; summary?: ComponentChildren; open?: boolean; collapsible?: boolean; force?: number; children: ComponentChildren;
+}) {
+  const [manual, setManual] = useState<boolean | null>(null);
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => setManual(null), [open]);
+  useEffect(() => {
+    if (!force) return;
+    setManual(true);
+    requestAnimationFrame(() => ref.current?.scrollIntoView({ block: 'start' }));
+  }, [force]);
+  const head = (
+    <>
+      <h2 class="group-title">{title}</h2>
+      <span class="group-summary">{summary}</span>
+      {collapsible && <span class="chevron" aria-hidden="true" />}
+    </>
+  );
+  if (!collapsible) {
+    return (
+      <section class="group">
+        <div class="group-head">{head}</div>
+        {children}
+      </section>
+    );
+  }
+  const isOpen = manual ?? open;
+  return (
+    <details ref={ref} class="group" open={isOpen}
+      onToggle={(e) => { if (e.currentTarget.open !== isOpen) setManual(e.currentTarget.open); }}>
+      <summary class="group-head">{head}</summary>
+      {children}
+    </details>
   );
 }
 
@@ -167,6 +212,7 @@ const PATHS: Record<string, JSX.Element> = {
   check: <path d="M3.5 8.5l3 3 6-7" />,
   arrow: <path d="M8 3.5v9M4.5 9L8 12.5 11.5 9" />,
   stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1" fill="currentColor" stroke="none" />,
+  qr: <path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9.5 9.5h1M12.5 9.5h.5M9.5 12.5h3.5M11 11h.01" stroke-width="1.3" />,
 };
 
 export function Icon({ name, size = 14 }: { name: keyof typeof PATHS | string; size?: number }) {

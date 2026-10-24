@@ -18,7 +18,8 @@
     "install-app": "node scripts/install.mjs"
   },
   "dependencies": {
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -8,7 +8,7 @@ const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg',
 };
-const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html' };
+const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html', '/intro': 'intro.html' };
 const SAFE_ERROR = /^[a-z0-9_:-]{1,80}$/;
 const BODY_LIMIT = 256 * 1024;
 
@@ -26,7 +26,7 @@ export async function startServer({ port, webRoot, session, version, log, get, p
   const security = {
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
     'Content-Security-Policy': "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; "
-      + "script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
+      + "script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://clips.twitch.tv; "
       + "connect-src 'self' https: wss: ws://127.0.0.1:* ws://localhost:*; media-src 'self' https: blob:; worker-src 'self' blob:; frame-ancestors 'self'",
   };
   const json = (res, status, data) => {
@@ -70,7 +70,7 @@ export async function startServer({ port, webRoot, session, version, log, get, p
         res.writeHead(200, { ...security, 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ app: 'Tadewusz', version }));
       }
-      if (req.method === 'GET' && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/overlay/') && !get[url.pathname]) {
+      if (req.method === 'GET' && !/^\/(api|overlay|intro)\//.test(url.pathname) && !get[url.pathname]) {
         if (await serveFile(res, url.pathname)) return;
         throw new HttpError(404, 'not_found');
       }

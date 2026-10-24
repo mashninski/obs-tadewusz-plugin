@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="be">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tadewusz — інтро</title>
+    <link rel="stylesheet" href="/src/intro/intro.css" />
+  </head>
+  <body>
+    <div id="frame">
+      <canvas id="topo" width="1920" height="1080" aria-hidden="true"></canvas>
+      <div id="grain" aria-hidden="true"></div>
+      <main id="stage">
+        <section class="links">
+          <h1 id="linksTitle"></h1>
+          <ul id="links"></ul>
+        </section>
+        <section class="side">
+          <div class="clip">
+            <div class="clip-glow" aria-hidden="true"></div>
+            <div id="screen" class="clip-screen">
+              <div id="idle" class="clip-idle"><span id="idleText">Хутка пачынаем</span></div>
+            </div>
+            <div class="clip-caption"><span id="clipTitle" class="clip-title"></span><span id="clipBy" class="clip-by"></span></div>
+          </div>
+          <div id="countdown" class="countdown">
+            <div id="countdownLabel" class="countdown-label">Да пачатку стрыму</div>
+            <div id="countdownTime" class="countdown-time">10:00</div>
+            <div id="finish" class="finish" hidden></div>
+          </div>
+        </section>
+      </main>
+      <footer id="donations" class="donations" hidden>
+        <span class="donations-title">Падтрымка канала</span>
+        <span class="donations-line">Хутка тут з’явяцца данаты</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/intro/intro.js"></script>
+  </body>
+</html>

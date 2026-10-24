@@ -6,7 +6,7 @@ import { CoreError, type CoreIdentity, type CoreTwitch } from './core';
 export const RATE_WAIT_MS = 30_000;
 
 export type TwitchErrorKind =
-  /** Няма ўваходу ў Twitch (падключэнне — у доку, укладка «Падключэнні»). */
+  /** Няма ўваходу ў Twitch (падключэнне — у доку, «Сістэма → Падключэнне»). */
   | 'auth'
   | 'rate'
   /** 403: канал не Affiliate/Partner або ўзнагарода створана іншым прыкладаннем. */

@@ -1,5 +1,5 @@
-// Укладка «Стан»: як працуе праграма — зверка з Twitch, чарга адказаў, рэзервовыя копіі, гісторыя, адрасы і музыка.
-// Уваходы ў сэрвісы — на ўкладцы «Падключэнні», тут іх не паўтараем.
+// «Сістэма → Стан»: як працуе праграма — зверка з Twitch, чарга адказаў, рэзервовыя копіі, гісторыя, адрасы і музыка.
+// Зверху — кампактная зводка; падрабязнасці — у згорнутых картках. Уваходы ў сэрвісы — у раздзеле «Падключэнне».
 import { useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
 import { MusicDiagnostics, VodCard } from '../music/ui/dock/Diagnostics';
@@ -20,7 +20,7 @@ function problems(state: CoreState, musicAlive: boolean): string[] {
   return list;
 }
 
-export function StatusTab({ state, music }: { state: CoreState; music: DockController }) {
+export function StatusSection({ state, music }: { state: CoreState; music: DockController }) {
   const leader = useStore(music.leader);
   const list = problems(state, !!leader);
   const pending = state.reception.outbox.reduce((n, row) => n + row.count, 0);
@@ -32,9 +32,11 @@ export function StatusTab({ state, music }: { state: CoreState; music: DockContr
         detail={list.length > 1 ? `І яшчэ ${list.length - 1}: ${list.slice(1).join(' · ')}` : `Tadewusz ${state.version}`} />
 
       <Card title="Праца з Twitch" help="Праграма звярае пакупкі з Twitch пры кожным падключэнні і пасля раўнда, таму пакупка не губляецца, нават калі падзея не дайшла. «Чакаюць Twitch» — пацверджанні і вяртанні балаў, якія Twitch яшчэ не прыняў: праграма паўтарае іх сама.">
-        <Row label="Падзеі Twitch" tone={state.eventsub === 'connected' ? 'good' : 'bad'}>{state.eventsub === 'connected' ? 'ідуць' : state.eventsub === 'connecting' ? 'падключэнне…' : 'не ідуць'}</Row>
+        <div class="kv-pair">
+          <Row label="Падзеі" tone={state.eventsub === 'connected' ? 'good' : 'bad'}>{state.eventsub === 'connected' ? 'ідуць' : state.eventsub === 'connecting' ? 'падключэнне…' : 'не ідуць'}</Row>
+          <Row label="Чакаюць" tone={pending ? 'bad' : ''}>{pending || 'нічога'}</Row>
+        </div>
         <Row label="Апошняя зверка" tone={state.reception.reconciledAt ? '' : 'muted'}>{state.reception.reconciledAt ? dateTime(state.reception.reconciledAt) : '—'}</Row>
-        <Row label="Чакаюць Twitch" tone={pending ? 'bad' : ''}>{pending || 'нічога'}</Row>
         {state.reception.outbox.filter((row) => row.error).map((row) => (
           <p key={`${row.kind}-${row.status}`} class="hint bad">{row.kind} · {row.count}: {errorText(new Error(row.error ?? ''))}</p>
         ))}
@@ -44,12 +46,13 @@ export function StatusTab({ state, music }: { state: CoreState; music: DockContr
       <History state={state} />
       <VodCard controller={music} />
 
-      <Card title="Адрасы для OBS" collapsible help="Крыніцы «Браўзер» у OBS. Лепш дадаваць іх праз старонку чакання obs/start.html — тады яны загрузяцца, нават калі OBS адкрыўся раней за праграму.">
+      <Card title="Адрасы для OBS" collapsible help="Крыніцы «Браўзер» у OBS. Лепш дадаваць іх праз старонку чакання obs/start.html — тады яны загрузяцца, нават калі OBS адкрыўся раней за праграму. Сцэну «Інтро» праграма стварае сама (укладка «Інтро»).">
         <div class="stack">
           <div class="field"><span>Док</span><CopyRow value={state.urls.dock} /></div>
           <div class="field"><span>Галасаванне</span><CopyRow value={state.urls.overlay} /></div>
           <div class="field"><span>Бягучы радок</span><CopyRow value={state.urls.ticker} /></div>
           <div class="field"><span>Музыка</span><CopyRow value={state.urls.music} /></div>
+          <div class="field"><span>Інтро</span><CopyRow value={state.urls.intro} /></div>
         </div>
       </Card>
 
@@ -70,8 +73,9 @@ function Backups({ state }: { state: CoreState }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, 'Экспарт гатовы');
   return (
-    <Card title="Рэзервовыя копіі"
+    <Card title="Рэзервовыя копіі" collapsible open={!!state.backups.error}
       actions={<>
+        <span class={`count ${state.backups.error ? 'bad' : ''}`} title="Апошняя копія">{state.backups.error ? 'памылка' : state.backups.at ? dateTime(state.backups.at) : '—'}</span>
         <button class="btn ghost" onClick={() => void exportData()}>Экспарт</button>
         <button class="btn" onClick={() => run(() => api('/api/backup'), 'Копія зроблена і праверана')}>Зрабіць копію</button>
       </>}

@@ -1,7 +1,8 @@
-// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка і HTTP.
+// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка, інтро і HTTP.
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store } from './storage/database.js';
 import { Backups } from './storage/backups.js';
 import { lockDataDirectory } from './storage/lock.js';
@@ -18,6 +19,7 @@ import { TickerReception } from './ticker/reception.js';
 import { tickerSourceStatus } from './obs/ticker-source.js';
 import { Obs } from './obs/obs.js';
 import { Steam } from './steam/steam.js';
+import { Intro } from './intro/intro.js';
 import { MusicBridge } from './music/bridge.js';
 import { LegacyMusicRewards } from './music/legacy-rewards.js';
 import { replyDefinitions, replyPlaceholders } from './chat/templates.js';
@@ -104,6 +106,9 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   };
 
   const legacyMusic = new LegacyMusicRewards({ store, fetchImpl, log });
+  const intro = new Intro({ store, twitch, log });
+  // Сцэна «Інтро» адкрывае старонку праз лакальную старонку чакання (як і астатнія крыніцы): яна дачакаецца ядра.
+  const startPage = pathToFileURL(fileURLToPath(new URL('../obs/start.html', import.meta.url))).href;
 
   const run = serialQueue();
   eventsub.onEvent((type, event, messageId) => run(async () => {
@@ -168,8 +173,9 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     port, webRoot, session, version, log,
     ...routes({
       store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications, obs,
-      steam, music, legacyMusic, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
+      steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
+      introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
     }),
   }).catch(async error => {
     clearInterval(timer);
@@ -199,5 +205,5 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     log('info', 'app.stopped');
   })();
 
-  return { origin: http.origin, store, voting, ticker, twitch, eventsub, votingReception, tickerReception, backups, close };
+  return { origin: http.origin, store, voting, ticker, twitch, eventsub, votingReception, tickerReception, backups, intro, obs, close };
 }

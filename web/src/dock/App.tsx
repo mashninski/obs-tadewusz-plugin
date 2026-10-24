@@ -1,13 +1,12 @@
-// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, падключэнні і налады.
+// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, інтро і «Сістэма» (стан, падключэнні, налады).
 import { useEffect, useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
 import { MusicHero, MusicRules, MusicSound } from '../music/ui/dock/MusicSettings';
 import { PlayerTab } from '../music/ui/dock/PlayerTab';
 import { useStore } from '../music/ui/shared/hooks';
-import { ConnectionsTab } from './ConnectionsTab';
 import { useCore } from './core';
-import { SettingsTab } from './SettingsTab';
-import { StatusTab } from './StatusTab';
+import { IntroTab } from './IntroTab';
+import { SystemTab } from './SystemTab';
 import { TickerTab } from './TickerTab';
 import { Dot, Hero, toast, Toasts } from './ui';
 import { VotingTab } from './VotingTab';
@@ -16,20 +15,24 @@ const TABS = [
   { id: 'voting', label: 'Галасаванне' },
   { id: 'ticker', label: 'Радок' },
   { id: 'music', label: 'Музыка' },
-  { id: 'connections', label: 'Падключэнні' },
-  { id: 'settings', label: 'Налады' },
-  { id: 'status', label: 'Стан' },
+  { id: 'intro', label: 'Інтро' },
+  { id: 'system', label: 'Сістэма' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
+/** Ранейшыя ўкладкі цяпер раздзелы «Сістэмы»; `#connections` (так вяртаюцца Spotify і YouTube) адкрывае падключэнні. */
+const OLD_TABS = ['connections', 'settings', 'status'];
+
 const tabFromHash = (): TabId => {
   const id = location.hash.slice(1);
+  if (OLD_TABS.includes(id)) return 'system';
   return TABS.some((tab) => tab.id === id) ? (id as TabId) : 'voting';
 };
 
 export function App({ music }: { music: DockController }) {
   const [tab, setTab] = useState<TabId>(tabFromHash);
+  const [focusConnections, setFocusConnections] = useState(() => (location.hash === '#connections' ? 1 : 0));
   const state = useCore();
   const spotify = useStore(music.spotify);
 
@@ -37,7 +40,13 @@ export function App({ music }: { music: DockController }) {
   useEffect(() => music.notice.subscribe((n) => n && toast(n.text, n.kind === 'error')), [music]);
 
   useEffect(() => {
-    const onHash = () => setTab(tabFromHash());
+    const onHash = () => {
+      if (location.hash === '#connections') {
+        setFocusConnections((n) => n + 1);
+        history.replaceState(null, '', '#system');
+      }
+      setTab(tabFromHash());
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -61,7 +70,7 @@ export function App({ music }: { music: DockController }) {
             </button>
           ))}
         </nav>
-        <button class="dots" title="Падключэнні" onClick={() => select('connections')}>
+        <button class="dots" title="Падключэнне" onClick={() => { select('system'); setFocusConnections((n) => n + 1); }}>
           <Dot tone={twitchTone} label="Twitch" />
           <Dot tone={obsTone} label="OBS" />
           <Dot tone={spotifyTone} label="Spotify" />
@@ -82,9 +91,8 @@ export function App({ music }: { music: DockController }) {
                 <MusicSound controller={music} />
               </>
             )}
-            {tab === 'connections' && state && <ConnectionsTab state={state} music={music} />}
-            {tab === 'settings' && state && <SettingsTab state={state} />}
-            {tab === 'status' && state && <StatusTab state={state} music={music} />}
+            {tab === 'intro' && state && <IntroTab state={state} />}
+            {tab === 'system' && state && <SystemTab state={state} music={music} focusConnections={focusConnections} />}
           </>
         )}
       </main>

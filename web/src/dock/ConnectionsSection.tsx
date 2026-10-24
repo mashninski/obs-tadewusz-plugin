@@ -1,5 +1,5 @@
-// Укладка «Падключэнні»: усе ўваходы праграмы аднолькавымі карткамі — Twitch, OBS, Spotify, YouTube, Steam.
-// Як працуе праграма (падзеі, зверка, копіі) — на ўкладцы «Стан».
+// «Сістэма → Падключэнне»: усе ўваходы праграмы аднолькавымі карткамі — Twitch, OBS, Spotify, YouTube, Steam.
+// Як працуе праграма (падзеі, зверка, копіі) — у раздзеле «Стан».
 import { useEffect, useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
 import { musicProblem, SpotifyConnection, YouTubeConnection } from '../music/ui/dock/MusicSettings';
@@ -9,7 +9,7 @@ import { Row, ServiceCard, Switch, TextField, toast, type Tone } from './ui';
 
 type Flow = { uri: string; code: string };
 
-export function ConnectionsTab({ state, music }: { state: CoreState; music: DockController }) {
+export function ConnectionsSection({ state, music }: { state: CoreState; music: DockController }) {
   return (
     <>
       <TwitchConnection state={state} music={music} />
