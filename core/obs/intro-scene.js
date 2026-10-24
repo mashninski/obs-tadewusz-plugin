@@ -1,8 +1,14 @@
-// Сцэна «Інтро» ў OBS: адна крыніца-браўзер 1920×1080 на старонку інтро праграмы.
+// Сцэна «Інтро» ў OBS: адна крыніца-браўзер на старонку інтро праграмы (у кадры — 1920×1080).
 // Ідэмпатэнтна: калі сцэна і крыніца ўжо ёсць, яны абнаўляюцца, а не дублююцца. Налады самой старонкі
 // (адлік, спасылкі, паўза паміж кліпамі) сюды не трапляюць — оверлей бярэ іх з праграмы сам.
 export const INTRO_SCENE = 'Інтро';
 export const INTRO_INPUT = 'Tadewusz · Інтро';
+/**
+ * Старонка вышэйшая за кадр: пад 1080 — месца «за кадрам», дзе плэер Twitch стартуе нябачным для гледачоў
+ * (значок ▶ і старт праходзяць там). OBS абразае гэтыя ніжнія 480 px.
+ */
+export const INTRO_PAGE_HEIGHT = 1560;
+export const INTRO_OFFSTAGE = INTRO_PAGE_HEIGHT - 1080;
 
 /**
  * Налады крыніцы-браўзера. Гук кліпаў ідзе праз OBS (гучнасць — у мікшары OBS).
@@ -10,7 +16,7 @@ export const INTRO_INPUT = 'Tadewusz · Інтро';
  * адлік пачынаецца з пачатку, спіс кліпаў абнаўляецца, а калода працягваецца (яна захоўваецца ў старонцы).
  */
 export const introBrowserSettings = url => ({
-  url, is_local_file: false, width: 1920, height: 1080, fps_custom: true, fps: 30,
+  url, is_local_file: false, width: 1920, height: INTRO_PAGE_HEIGHT, fps_custom: true, fps: 30,
   reroute_audio: true, shutdown: true, restart_when_active: true, css: '',
 });
 
@@ -41,7 +47,7 @@ export async function ensureIntroScene(obs, { url }) {
   await obs.request('SetSceneItemTransform', {
     sceneName: INTRO_SCENE, sceneItemId,
     sceneItemTransform: {
-      positionX: 0, positionY: 0, rotation: 0, alignment: 5, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0,
+      positionX: 0, positionY: 0, rotation: 0, alignment: 5, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: INTRO_OFFSTAGE,
       boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsAlignment: 0, boundsWidth: baseWidth, boundsHeight: baseHeight,
     },
   });

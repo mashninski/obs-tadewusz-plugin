@@ -58,7 +58,16 @@ html, body {
   font-family: Manrope, 'Segoe UI', system-ui, sans-serif;
 }
 
-/* Кадр заўсёды 1920×1080; у меншым акне (праверка ў браўзеры) ён маштабуецца цалкам. */
+/* Корань: кадр 1920×1080 і пад ім месца «за кадрам» (у OBS абрэзана). У меншым акне ўсё маштабуецца разам. */
+#root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1560px;
+  transform-origin: 0 0;
+  transform: scale(var(--fit, 1));
+}
 #frame {
   position: absolute;
   left: 0;
@@ -66,8 +75,6 @@ html, body {
   width: 1920px;
   height: 1080px;
   overflow: hidden;
-  transform-origin: 0 0;
-  transform: scale(var(--fit, 1));
   background:
     radial-gradient(1200px 700px at 12% -10%, rgba(9, 59, 51, 0.55), transparent 70%),
     linear-gradient(160deg, var(--base-2) 0%, var(--base) 60%);
@@ -192,33 +199,13 @@ html, body {
   /* Цень звонку рамкі — нічога не ляжа паверх плэера. */
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.35);
 }
-.layer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  opacity: 0;
-  transition: opacity 0.6s ease;
-  pointer-events: none;
-}
-.layer.shown { opacity: 1; }
-/* Плэер з’яўляецца адразу (празрысты плэер Twitch не запускае). */
-.player { transition: none; background: transparent; }
-/* Паласа «нарэзкі»: бірузовая, з тонкімі касымі штрыхамі; форму і месца задае clip-path з JS. */
-.band {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(112deg, rgba(237, 230, 216, 0.16) 0 3px, transparent 3px 22px),
-    linear-gradient(112deg, #2f8f8a 0%, #4fb8b8 45%, #8fd6cf 52%, #4fb8b8 60%, #2a7f7a 100%);
-}
-.band[hidden] { display: none; }
-.thumb { background: #050807; overflow: hidden; }
-/* Кадра няма (стары спіс без прэв’ю) — проста фон рамкі, без залівак. */
-.thumb.empty { background: transparent; }
-/* Першы кадр праяўляецца з размыцця і крыху буйней і «асядае» роўна туды, дзе з’явіцца відэа. */
+/* Плэеры, картка і прэв’ю — асобны пласт паверх кадра (без абрэзкі: плэер «за кадрам» павінен быць бачным браўзеру). */
+#players { position: absolute; inset: 0; pointer-events: none; }
+#players > * { position: absolute; border-radius: var(--radius); overflow: hidden; }
+/* Ждучы плэер за кадрам: амаль непразрысты. Для Twitch гэта «не бачны» (не запускае), а Chrome не лічыць
+   яго схаваным і не тармозіць загрузку (з opacity: 0 старонка плэера грузілася 4–12 с). */
+.player { border: 0; opacity: 0.99; background: transparent; }
+.thumb { background: #050807; }
 .thumb img {
   display: block;
   width: 100%;
@@ -229,6 +216,65 @@ html, body {
   transition: transform var(--settle, 2600ms) cubic-bezier(0.25, 0.1, 0.25, 1), filter var(--settle, 2600ms) cubic-bezier(0.45, 0, 0.55, 1);
 }
 .thumb.settled img { transform: scale(1); filter: none; }
+
+/* Картка «нарэзкі»: графітава-зялёная, тонкія ізалініі, бірузовая рыса — як фон сцэны, толькі шчыльней. */
+.card {
+  display: flex;
+  align-items: flex-end;
+  background:
+    radial-gradient(520px 320px at 78% 20%, rgba(23, 104, 88, 0.45), transparent 70%),
+    linear-gradient(160deg, #0f1f1b, #08100e);
+}
+.card-lines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background:
+    repeating-radial-gradient(circle at 85% 15%, transparent 0 22px, rgba(79, 184, 184, 0.18) 22px 23px);
+}
+.card-body { position: relative; padding: 0 48px 44px; width: 100%; }
+.card-label {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent);
+  animation: card-up 0.42s 0.08s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-label::before {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 3px;
+  margin-bottom: 16px;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  animation: card-line 0.5s 0.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-title {
+  margin-top: 10px;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--ivory);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  animation: card-up 0.42s 0.14s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-by {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ivory-dim);
+  animation: card-up 0.42s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-by:empty { display: none; }
+.card-by::before { content: '· '; color: var(--accent); font-weight: 800; }
+@keyframes card-up { from { opacity: 0; transform: translateY(14px); } }
+@keyframes card-line { from { transform: scaleX(0); } }
 .clip-idle {
   position: absolute;
   inset: 0;
@@ -256,10 +302,10 @@ html, body {
 }
 .clip-caption.hidden { opacity: 0; }
 .clip-title { flex: 0 1 auto; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.clip-by { flex: none; display: inline-flex; align-items: center; gap: 8px; color: var(--ivory-dim); font-weight: 500; font-size: 19px; }
+.clip-by { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ivory-dim); font-weight: 500; font-size: 19px; }
 .clip-by[hidden] { display: none; }
 .clip-dot { margin-right: 4px; color: var(--accent); font-weight: 800; }
-.clip-person { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
 
 /* ---------- Адлік ---------- */
 

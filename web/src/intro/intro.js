@@ -9,35 +9,36 @@ import { grainTile, startTopo } from './topo.js';
 const POLL_MS = 2000;
 const REFRESH_MS = 5 * 60_000;
 /*
- * Плэер кліпаў Twitch нічога не паведамляе старонцы (ні «грае», ні «скончыўся») і не прымае каманд,
- * а запускаецца толькі тады, калі ён бачны: не паменшаны, не празрысты, нічым не накрыты і ў кадры
- * хоць бы ~паловай плошчы (замерана ў OBS 2026-10-24; абрэзка праз clip-path — дазволеная).
- * Калі ён становіцца бачным, яшчэ ~0,5–1 с стаіць на паўзе са значком ▶ у цэнтры. Таму змена кліпаў — «нарэзка»:
- * - `controls=false` — Twitch не малюе назву, кнопкі і плашкі (гук пры гэтым застаецца);
- * - плэер наступнага кліпа загадзя грузіцца празрыстым (Twitch чакае і не грае);
- * - праз рамку пралятае дыяганальная паласа: за ёй адкрываецца наступны кліп; на сярэдзіне паласа спыняецца —
- *   плэер у гэты момант бачны на ~80 % і запускаецца, а цэнтр са значком ▶ выразаны пад паласой (паласа ляжыць
- *   пад плэерам і відаць праз выраз — гэта не «накрыццё»); калі кліп пайшоў, паласа адлятае;
- * - першы кліп пасля актывацыі і паўза паміж кліпамі — першы кадр кліпа (прэв’ю Twitch), які мякка праяўляецца.
+ * Плэер кліпаў Twitch нічога не паведамляе старонцы (ні «грае», ні «скончыўся») і не прымае каманд.
+ * Ён запускаецца толькі тады, калі бачны: не паменшаны, не празрысты, нічым не накрыты і хоць бы на паловую
+ * плошчы ў акне старонкі; першыя ~0,8–1 с пасля гэтага стаіць на паўзе са значком ▶. Калі яго абрэзаць
+ * больш чым напалову — становіцца на паўзу і сам не працягвае (усё замерана ў OBS 2026-10-24).
+ *
+ * Таму наступны кліп стартуе «за кадрам»: старонка вышэйшая за 1080 (1920×1560), а OBS абразае ніжнія 480 px
+ * (сцэну так наладжвае кнопка дока). Там плэер бачны для браўзера, але не для гледачоў — значок ▶ і старт
+ * праходзяць там. Змена кліпаў — «нарэзка»:
+ * 1) у рамку касым зрэзам уваходзіць картка «наступны кліп» (назва, аўтар) і накрывае канец старога кліпа;
+ * 2) пад карткай ужо гучыць новы кліп (ён грае за кадрам) — гук на імгненне апярэджвае карцінку;
+ * 3) новы кліп, ужо на хаду, такім жа хуткім касым зрэзам (0,3 с) займае рамку — без паўзы і без ▶.
+ * `controls=false` — Twitch не малюе назву, кнопкі і плашкі (гук застаецца).
  */
-/** Плэеру пасля загрузкі патрэбны час, каб падрыхтавацца: тады ён пачынае хутка (з 1 с значок ▶ трымаўся даўжэй). */
-const WARM_MS = 3000;
-/** Падрыхтаваны плэер пачынае праз столькі пасля таго, як стаў бачным. */
-const PLAY_AFTER_SHOW_MS = 800;
-/** Паласа: уваход да сярэдзіны, прыпынак (тут стартуе плэер), выхад. */
-const BAND_IN_MS = 520;
-const BAND_HOLD_MS = 1300;
-const BAND_OUT_MS = 560;
-/** Шырыня паласы і яе нахіл (верх зрушаны направа), px у рамцы 832×468. */
-const BAND_WIDTH = 190;
-const BAND_SLANT = 150;
-/** Паласа накрывае кліп крыху раней за яго канец — экран рэкамендацый Twitch не відаць. */
-const END_EARLY_MS = 300;
-/** Колькі першы кадр «праяўляецца» (з размыцця і крыху буйней — да рэзкага, роўна як першы кадр відэа). */
-const SETTLE_MIN_MS = 2600;
-/** Першы кліп пасля актывацыі: плэер толькі пачынае грузіцца — кадр праяўляецца павольней, увесь гэты час. */
+/** Шырыня кадра і месца «за кадрам»: ніжэй за 1080 з запасам 6 px. */
+const FRAME_H = 1080;
+const OFFSTAGE_Y = 1086;
+/** Пасля загрузкі старонкі плэера — кароткі запас, перш чым рабіць яго бачным (▶ усё роўна за кадрам). */
+const WARM_MS = 300;
+/** Ад «стаў бачным» да ўваходу ў рамку: значок ▶ і пачатак прайгравання праходзяць за кадрам. */
+const START_MS = 1100;
+/** Каля гэтага часу пасля «стаў бачным» кліп сапраўды пачынае іграць (па кадрах у OBS — 0,5–1 с). */
+const PLAYS_AFTER_MS = 500;
+/** Уваход карткі і ўваход кліпа — хуткія касыя зрэзы. */
+const CARD_IN_MS = 280;
+const WIPE_MS = 300;
+/** Картка накрывае кліп крыху раней за канец — экран рэкамендацый Twitch не відаць. */
+const END_EARLY_MS = 450;
+/** Колькі першы кадр «праяўляецца» (першы кліп пасля актывацыі). */
 const SETTLE_COLD_MS = 5500;
-/** Калі старонка плэера не загрузілася, кліп усё роўна паказваецца. */
+/** Калі старонка плэера не загрузілася, кліп усё роўна запускаецца. */
 const LOAD_TIMEOUT_MS = 10_000;
 const DECK_KEY = 'tadewusz.intro.deck';
 
@@ -46,7 +47,7 @@ const state = { config: null, restartAt: null, clipsVersion: undefined, countdow
 
 // ---------- Кадр ----------
 
-const fit = () => document.documentElement.style.setProperty('--fit', String(Math.min(innerWidth / 1920, innerHeight / 1080)));
+const fit = () => document.documentElement.style.setProperty('--fit', String(Math.min(innerWidth / 1920, innerHeight / FRAME_H)));
 addEventListener('resize', fit);
 fit();
 startTopo($('topo'));
@@ -150,63 +151,90 @@ setInterval(tickCountdown, 250);
 
 const deck = new ClipDeck({ saved: (() => { try { return JSON.parse(localStorage.getItem(DECK_KEY) ?? 'null'); } catch { return null; } })() });
 const saveDeck = () => { try { localStorage.setItem(DECK_KEY, JSON.stringify(deck.save())); } catch {} };
-let player = { timer: 0, clip: null, layer: null, pending: null };
+/** `current` — кліп у рамцы; `standby` — плэер наступнага, празрысты, за кадрам; `token` адмяняе старыя таймеры. */
+let current = null;
+let standby = null;
+let token = 0;
 let layerZ = 1;
+const later = (ms, fn) => { const my = token; setTimeout(() => { if (my === token) fn(); }, ms); };
+
+/** `?debug` у адрасе — радок падзей плэера ўнізе злева (для праверкі пераходаў). */
+const debugLine = new URLSearchParams(location.search).has('debug') ? (() => {
+  const line = document.createElement('div');
+  line.style.cssText = 'position:absolute;left:8px;top:1050px;font:14px Consolas,monospace;color:#8fa39a;z-index:10';
+  $('root').append(line);
+  const t0 = performance.now();
+  const events = [];
+  return (text) => { events.push(`${((performance.now() - t0) / 1000).toFixed(1)} ${text}`); line.textContent = events.slice(-6).join(' · '); };
+})() : () => {};
+
+/** Месца «за кадрам» ёсць, калі старонка вышэйшая за кадр (сцэна наладжана кнопкай дока). */
+const offstage = () => innerHeight / Number(getComputedStyle(document.documentElement).getPropertyValue('--fit') || 1) >= OFFSTAGE_Y + 468;
+
+/** Рамка кліпа ў каардынатах кораня (1920×1560). */
+function box() {
+  const root = $('root').getBoundingClientRect(), r = $('screen').getBoundingClientRect();
+  const k = root.width / 1920;
+  return { x: (r.left - root.left) / k, y: (r.top - root.top) / k, w: r.width / k, h: r.height / k };
+}
+
+function place(el, where) {
+  const b = box();
+  el.style.left = `${b.x}px`;
+  el.style.top = `${where === 'box' ? b.y : OFFSTAGE_Y}px`;
+  el.style.width = `${b.w}px`;
+  el.style.height = `${b.h}px`;
+}
+
+function addLayer(el, where = 'box') {
+  el.style.zIndex = String(++layerZ);
+  place(el, where);
+  $('players').append(el);
+  return el;
+}
 
 /** Пустая рамка: `text` — толькі калі кліпаў сапраўды няма (пакуль спіс грузіцца — без надпісу). */
 function showIdle(text = '') {
+  token++;
   $('idleText').textContent = text;
   $('idle').classList.remove('hidden');
   $('caption').classList.add('hidden');
-  $('band').hidden = true;
-  for (const layer of $('screen').querySelectorAll('.layer')) fadeOut(layer);
-}
-
-/** Новы слой (прэв’ю або плэер) кладзецца зверху і праяўляецца; ніжнія прыбіраюцца, калі ён накрыў іх. */
-function addLayer(element) {
-  element.classList.add('layer');
-  element.style.zIndex = String(++layerZ);
-  $('screen').append(element);
-  return element;
-}
-
-function reveal(layer) {
-  requestAnimationFrame(() => requestAnimationFrame(() => layer.classList.add('shown')));
-  setTimeout(() => {
-    for (const other of $('screen').querySelectorAll('.layer')) {
-      if (other !== layer && other !== standby?.frame && Number(other.style.zIndex) < Number(layer.style.zIndex)) other.remove();
-    }
-  }, 700);
-}
-
-function fadeOut(layer) {
-  layer.classList.remove('shown');
-  setTimeout(() => layer.remove(), 700);
+  for (const el of $('players').children) el.remove();
+  current = null;
+  standby = null;
 }
 
 /** Twitch аддае прэв’ю 480×272; той жа кадр ёсць і ў 1280×720 — для рамкі 832×468 ён нашмат больш выразны. */
 const largeThumb = (url) => url.replace(/-480x272\.(jpg|png)$/, '-1280x720.$1');
 
-/** Кадр-прэв’ю кліпа з Twitch (першы кадр); калі яго няма — мяккі градыент. */
-function thumbLayer(clip, settleMs) {
-  const box = document.createElement('div');
-  box.className = 'thumb';
+/** Першы кадр кліпа, што мякка праяўляецца (першы кліп пасля актывацыі сцэны). */
+function thumbLayer(clip) {
+  const el = document.createElement('div');
+  el.className = 'thumb';
   if (clip.thumbnail) {
     const img = new Image();
     img.src = largeThumb(clip.thumbnail);
     img.onerror = () => { if (img.src !== clip.thumbnail) img.src = clip.thumbnail; };
     img.alt = '';
-    img.style.setProperty('--settle', `${settleMs}ms`);
-    box.append(img);
-    // Кадр праяўляецца і «асядае» на месца, калі ўжо бачны.
-    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('settled')));
-  } else {
-    box.classList.add('empty');
+    img.style.setProperty('--settle', `${SETTLE_COLD_MS}ms`);
+    el.append(img);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('settled')));
   }
-  return addLayer(box);
+  return addLayer(el);
 }
 
-/** Подпіс у адзін радок: назва · аўтар кліпа; мяняецца праз мяккае знікненне. */
+/** Картка «нарэзкі» паміж кліпамі: наступны кліп, назва, аўтар. Уваходзіць касым зрэзам. */
+function cardLayer(clip) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = '<div class="card-lines" aria-hidden="true"></div><div class="card-body"><div class="card-label">Наступны кліп</div>'
+    + '<div class="card-title"></div><div class="card-by"></div></div>';
+  el.querySelector('.card-title').textContent = clip.title;
+  el.querySelector('.card-by').textContent = clip.creator;
+  return addLayer(el);
+}
+
+/** Подпіс пад рамкай у адзін радок: назва · аўтар кліпа. */
 function setCaption(clip) {
   const caption = $('caption');
   const wasShown = !caption.classList.contains('hidden');
@@ -219,7 +247,10 @@ function setCaption(clip) {
   }, wasShown ? 300 : 0);
 }
 
-function playerLayer(clip) {
+/** Плэер кліпа за кадрам, празрысты: грузіцца, але Twitch яго не запускае, пакуль ён не стане бачным. */
+function prepare(clip) {
+  if (!clip || standby?.clip.id === clip.id) return;
+  standby?.frame.remove();
   const frame = document.createElement('iframe');
   const params = new URLSearchParams({
     clip: clip.id, parent: location.hostname, autoplay: 'true', muted: 'false', controls: 'false', preload: 'auto',
@@ -230,150 +261,97 @@ function playerLayer(clip) {
   frame.setAttribute('scrolling', 'no');
   frame.className = 'player';
   frame.addEventListener('load', () => { frame.dataset.loaded = String(performance.now()); debugLine(`load ${clip.id.slice(0, 6)}`); });
-  return addLayer(frame);
-}
-
-/** `?debug` у адрасе — радок падзей плэера ўнізе злева (для праверкі пераходаў). */
-const debugLine = new URLSearchParams(location.search).has('debug') ? (() => {
-  const line = document.createElement('div');
-  line.style.cssText = 'position:absolute;left:8px;bottom:4px;font:14px Consolas,monospace;color:#8fa39a;z-index:10';
-  $('frame').append(line);
-  const t0 = performance.now();
-  const events = [];
-  return (text) => { events.push(`${((performance.now() - t0) / 1000).toFixed(1)} ${text}`); line.textContent = events.slice(-6).join(' · '); };
-})() : () => {};
-
-/** Плэер наступнага кліпа, што ўжо грузіцца (празрысты). */
-let standby = null;
-
-function prepare(clip) {
-  if (!clip || standby?.clip.id === clip.id) return;
-  standby?.frame.remove();
-  const frame = playerLayer(clip);
-  // Пад усімі слаямі: празрысты плэер зверху мог бы «накрыць» той, што грае, і Twitch паставіў бы яго на паўзу.
+  addLayer(frame, offstage() ? 'offstage' : 'box');
+  // Без месца «за кадрам» ждучы плэер ляжыць пад рамкай — там ён павінен быць цалкам празрыстым.
+  if (!offstage()) frame.style.opacity = '0';
   frame.style.zIndex = '1';
   standby = { clip, frame };
   debugLine(`standby ${clip.id.slice(0, 6)}`);
 }
 
-/** Плэер загрузіўся і пастаяў WARM_MS (або чакаць далей няма сэнсу) — тады `fn`, але не раней за `minMs`. */
-function whenWarm(frame, minMs, fn) {
+/** Чакаць, пакуль плэер загрузіцца і пастаіць WARM_MS (але не даўжэй за LOAD_TIMEOUT_MS). */
+function whenWarm(frame, fn) {
   const since = performance.now();
   const check = () => {
-    if (player.pending !== check) return;
     const loaded = frame.dataset.loaded ? performance.now() - Number(frame.dataset.loaded) : -1;
-    const waited = performance.now() - since;
-    if ((loaded >= WARM_MS || waited >= LOAD_TIMEOUT_MS) && waited >= minMs) fn();
-    else player.timer = setTimeout(check, 100);
+    if (loaded >= WARM_MS || performance.now() - since >= LOAD_TIMEOUT_MS) fn();
+    else later(100, check);
   };
-  player.pending = check;
   check();
 }
 
-function playNext() {
-  clearTimeout(player.timer);
-  const clip = deck.next();
-  saveDeck();
-  if (!clip) {
-    player = { timer: 0, clip: null, layer: null };
-    showIdle('Хутка пачынаем');
-    return;
-  }
-  const pause = (state.config?.clipPause ?? 0) * 1000;
-  const warm = standby?.clip.id === clip.id && standby.frame.dataset.loaded
-    && performance.now() - Number(standby.frame.dataset.loaded) >= WARM_MS;
-  prepare(clip);
-  $('idle').classList.add('hidden');
-  const first = !player.clip;
-  player = { ...player, clip, timer: 0 };
-  if (first || pause > 0 || !warm) {
-    // Першы кліп, паўза або плэер яшчэ не гатовы: праяўляецца першы кадр, потым — паласа.
-    reveal(thumbLayer(clip, Math.max(warm ? SETTLE_MIN_MS : SETTLE_COLD_MS, pause)));
-    setCaption(clip);
-    whenWarm(standby.frame, Math.max(first ? 0 : 650, pause), () => bandTo(clip, true));
-  } else {
-    bandTo(clip, false);
-  }
-}
-
 const easeOut = (t) => 1 - (1 - t) ** 3;
-const easeIn = (t) => t ** 3;
 
-function animate(ms, ease, step) {
+/** Касы зрэз злева направа: `p` 0…1 — колькі ўжо відаць. */
+const slash = (p) => {
+  const x = -24 + 148 * p;
+  return `polygon(-1% -1%, ${x + 12}% -1%, ${x - 12}% 101%, -1% 101%)`;
+};
+
+function wipeIn(el, ms) {
   return new Promise((resolve) => {
     const start = performance.now();
-    const frame = (now) => {
+    const step = (now) => {
       const t = Math.min(1, (now - start) / ms);
-      step(ease(t));
-      if (t < 1) requestAnimationFrame(frame);
+      el.style.clipPath = t < 1 ? slash(easeOut(t)) : '';
+      if (t < 1) requestAnimationFrame(step);
       else resolve();
     };
-    requestAnimationFrame(frame);
+    el.style.clipPath = slash(0);
+    requestAnimationFrame(step);
   });
 }
 
-/** Вуглы паласы з цэнтрам на `c` (px па гарызанталі): верх зрушаны направа на BAND_SLANT. */
-function bandAt(c, h) {
-  const half = BAND_WIDTH / 2, slant = BAND_SLANT / 2;
-  return { tl: c - half + slant, tr: c + half + slant, br: c + half - slant, bl: c - half - slant, h };
-}
-const px = (n) => `${n.toFixed(1)}px`;
-/** Плэер злева ад паласы (тое, што паласа ўжо адкрыла). */
-const clipBehind = (b) => `polygon(-1px -1px, ${px(b.tl)} -1px, ${px(b.bl)} ${px(b.h + 1)}, -1px ${px(b.h + 1)})`;
-/** Плэер увесь, акрамя паласы (злева і справа ад яе). */
-const clipAround = (b, w) => `polygon(evenodd, -1px -1px, ${px(b.tl)} -1px, ${px(b.bl)} ${px(b.h + 1)}, ${px(b.br)} ${px(b.h + 1)}, `
-  + `${px(b.tr)} -1px, ${px(w + 1)} -1px, ${px(w + 1)} ${px(b.h + 1)}, -1px ${px(b.h + 1)})`;
-const bandShape = (b) => `polygon(${px(b.tl)} -1px, ${px(b.tr)} -1px, ${px(b.br)} ${px(b.h + 1)}, ${px(b.bl)} ${px(b.h + 1)})`;
-
-/** Дыяганальная паласа пралятае праз рамку і адкрывае наступны кліп (падрыхтаваны плэер). */
-function bandTo(clip, captionShown) {
+function playNext() {
+  token++;
+  const clip = deck.next();
+  saveDeck();
+  if (!clip) { showIdle('Хутка пачынаем'); return; }
   prepare(clip);
+  $('idle').classList.add('hidden');
   const frame = standby.frame;
-  standby = null;
-  player.layer = frame;
-  player.pending = null;
-  const screen = $('screen'), band = $('band');
-  const w = screen.clientWidth, h = screen.clientHeight;
-  const from = -BAND_WIDTH - BAND_SLANT, middle = w / 2, to = w + BAND_WIDTH + BAND_SLANT;
-  // Паласа — над усім, што было; плэер — над паласой, але з выразам на яе месцы.
-  band.style.zIndex = String(++layerZ);
-  frame.style.zIndex = String(++layerZ);
-  frame.style.clipPath = clipBehind(bandAt(from, h));
-  band.style.clipPath = bandShape(bandAt(from, h));
-  band.hidden = false;
-  frame.classList.add('shown');
-  debugLine(`band ${clip.id.slice(0, 6)}`);
-  const alive = () => player.layer === frame;
+  const pause = (state.config?.clipPause ?? 0) * 1000;
+  debugLine(`next ${clip.id.slice(0, 6)}`);
 
-  void animate(BAND_IN_MS, easeOut, (t) => {
-    if (!alive()) return;
-    const b = bandAt(from + (middle - from) * t, h);
-    frame.style.clipPath = clipBehind(b);
-    band.style.clipPath = bandShape(b);
-  }).then(() => {
-    if (!alive()) return;
-    // Паласа ў цэнтры: плэер бачны вакол яе — Twitch запускае кліп, значок ▶ схаваны пад паласой.
-    frame.style.clipPath = clipAround(bandAt(middle, h), w);
-    for (const old of screen.querySelectorAll('.layer')) if (old !== frame && old !== standby?.frame) old.remove();
-    if (!captionShown) setCaption(clip);
-    player.timer = setTimeout(playNext, Math.max(1000, PLAY_AFTER_SHOW_MS + clip.duration * 1000 - END_EARLY_MS - BAND_IN_MS));
-    setTimeout(() => {
-      if (!alive()) return;
-      void animate(BAND_OUT_MS, easeIn, (t) => {
-        if (!alive()) return;
-        const b = bandAt(middle + (to - middle) * t, h);
-        frame.style.clipPath = clipAround(b, w);
-        band.style.clipPath = bandShape(b);
-      }).then(() => {
-        if (!alive()) return;
-        frame.style.clipPath = '';
-        band.hidden = true;
-        // Пакуль гэты кліп грае, загадзя грузіцца наступны.
-        const upcoming = deck.peek();
-        prepare(upcoming);
-        if (upcoming?.thumbnail) new Image().src = largeThumb(upcoming.thumbnail);
+  let cover;
+  if (!current) {
+    // Першы кліп пасля актывацыі: праяўляецца яго першы кадр, пакуль плэер грузіцца.
+    cover = thumbLayer(clip);
+    setCaption(clip);
+  } else {
+    // Картка касым зрэзам накрывае канец старога кліпа; калі накрыла — стары плэер прыбіраецца (і яго гук).
+    cover = cardLayer(clip);
+    void wipeIn(cover, CARD_IN_MS);
+    setCaption(clip);
+    const old = current.frame;
+    later(CARD_IN_MS, () => old.remove());
+  }
+  current = { clip, frame };
+
+  whenWarm(frame, () => {
+    // Плэер становіцца бачным за кадрам: Twitch запускае кліп (значок ▶ — там). Паўза — картка стаіць даўжэй.
+    later(Math.max(0, CARD_IN_MS + pause - START_MS), () => {
+      standby = null;
+      frame.style.opacity = '1';
+      const startedAt = performance.now();
+      // Сцэна яшчэ не наладжана на «за кадрам» — плэер стартуе адразу ў рамцы (значок ▶ будзе відаць).
+      if (!offstage()) frame.style.zIndex = String(++layerZ);
+      debugLine(`start ${clip.id.slice(0, 6)}`);
+      later(START_MS, () => {
+        // Кліп ужо грае: у рамку — хуткім касым зрэзам, паверх карткі.
+        place(frame, 'box');
+        frame.style.zIndex = String(++layerZ);
+        debugLine(`in ${clip.id.slice(0, 6)}`);
+        void wipeIn(frame, WIPE_MS).then(() => {
+          for (const el of [...$('players').children]) if (el !== frame && el !== standby?.frame) el.remove();
+        });
+        // Канец кліпа — ад моманту, калі ён пачаў іграць за кадрам, а не ад уваходу ў рамку.
+        const endsAt = startedAt + PLAYS_AFTER_MS + clip.duration * 1000;
+        later(Math.max(1500, endsAt - END_EARLY_MS - CARD_IN_MS - performance.now()), playNext);
+        // Пакуль гэты кліп грае, наступны ўжо грузіцца за кадрам (празрысты — Twitch яго не запускае).
+        later(WIPE_MS + 50, () => prepare(deck.peek()));
       });
-    }, BAND_HOLD_MS);
+    });
   });
 }
 
@@ -384,8 +362,8 @@ async function loadClips() {
     deck.update(clips);
     saveDeck();
     // Пустая калода атрымала кліпы — пачаць; інакш новыя проста чакаюць у калодзе, бягучы кліп не перарываецца.
-    if (wasEmpty && deck.size && !player.clip) playNext();
-    if (!deck.size && !player.clip) showIdle('Хутка пачынаем');
+    if (wasEmpty && deck.size && !current) playNext();
+    if (!deck.size && !current) showIdle('Хутка пачынаем');
   } catch {
     // Праграма не адказала — граем далей па тым, што ўжо ёсць.
   }

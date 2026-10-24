@@ -201,7 +201,8 @@ function fakeObs() {
         case 'CreateSceneItem': { const sceneItemId = nextItem++; scenes.get(data.sceneName).push({ sceneItemId, sourceName: data.sourceName }); return { sceneItemId }; }
         case 'RemoveSceneItem': scenes.set(data.sceneName, scenes.get(data.sceneName).filter(i => i.sceneItemId !== data.sceneItemId)); return {};
         case 'GetVideoSettings': return { baseWidth: 1920, baseHeight: 1080 };
-        case 'SetSceneItemTransform': case 'SetSceneItemEnabled': return {};
+        case 'SetSceneItemTransform': obs.transform = data.sceneItemTransform; return {};
+        case 'SetSceneItemEnabled': return {};
         default: throw new Error(`unexpected ${type}`);
       }
     },
@@ -220,8 +221,9 @@ test('сцэна інтро: стварэнне, паўторнае стварэ
   const settings = obs.inputs.get(INTRO_INPUT).settings;
   assert.equal(settings.url, 'file:///start.html?page=intro&port=2');
   assert.equal(settings.width, 1920);
-  assert.equal(settings.height, 1080);
+  assert.equal(settings.height, 1560, 'старонка вышэйшая за кадр — месца «за кадрам»');
   assert.equal(settings.reroute_audio, true);
+  assert.equal(obs.transform.cropBottom, 480, 'OBS абразае месца «за кадрам»');
   // Крыніцу выпадкова дадалі ў сцэну двойчы — застаецца адна.
   obs.scenes.get(INTRO_SCENE).push({ sceneItemId: 99, sourceName: INTRO_INPUT });
   const third = await ensureIntroScene(obs, { url: 'x' });
