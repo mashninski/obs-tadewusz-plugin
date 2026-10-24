@@ -31,20 +31,30 @@ export class ClipDeck {
 
   /** Наступны кліп або `null`, калі кліпаў няма. */
   next() {
-    if (!this.pool.size) return null;
-    if (!this.order.length) {
-      this.played.clear();
-      this.order = shuffle([...this.pool.keys()], this.random);
-      // Апошні кліп мінулага цыкла не павінен адразу ісці першым у новым.
-      if (this.order.length > 1 && this.order[0] === this.last) {
-        const swap = 1 + Math.floor(this.random() * (this.order.length - 1));
-        [this.order[0], this.order[swap]] = [this.order[swap], this.order[0]];
-      }
-    }
+    if (!this.refill()) return null;
     const id = this.order.shift();
     this.played.add(id);
     this.last = id;
     return this.pool.get(id);
+  }
+
+  /** Які кліп пойдзе наступным (без змены калоды); калі цыкл скончыўся, новае перамешванне робіцца ўжо цяпер. */
+  peek() {
+    return this.refill() ? this.pool.get(this.order[0]) ?? null : null;
+  }
+
+  /** Калі ўсе кліпы цыкла паказаныя — новае перамешванне. `false`, калі кліпаў няма. */
+  refill() {
+    if (!this.pool.size) return false;
+    if (this.order.length) return true;
+    this.played.clear();
+    this.order = shuffle([...this.pool.keys()], this.random);
+    // Апошні кліп мінулага цыкла не павінен адразу ісці першым у новым.
+    if (this.order.length > 1 && this.order[0] === this.last) {
+      const swap = 1 + Math.floor(this.random() * (this.order.length - 1));
+      [this.order[0], this.order[swap]] = [this.order[swap], this.order[0]];
+    }
+    return true;
   }
 
   save() {

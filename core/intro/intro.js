@@ -12,12 +12,12 @@ const WINDOW_LIMIT = 950;
 const PAGES_PER_WINDOW = 20;
 
 export const introDefaults = {
-  version: 1,
+  version: 2,
   countdown: 600,
   finishText: 'Пачынаем!',
   linksTitle: 'Дзе мяне знайсці',
   links: [],
-  clipPause: 5,
+  clipPause: 0,
   donations: false,
 };
 
@@ -38,13 +38,14 @@ export function validateIntro(input) {
     return { id: link.id, url: link.url.trim(), label: (link.label ?? '').normalize('NFKC').trim(), qr: link.qr ?? false };
   });
   return {
-    version: 1, countdown: value.countdown, finishText: value.finishText.normalize('NFKC').trim(),
+    version: 2, countdown: value.countdown, finishText: value.finishText.normalize('NFKC').trim(),
     linksTitle: value.linksTitle.normalize('NFKC').trim(), links, clipPause: value.clipPause, donations: value.donations,
   };
 }
 
 const clipOf = c => ({
   id: String(c.id), title: String(c.title ?? ''), duration: Number(c.duration) || 30,
+  thumbnail: /^https:\/\/[^\s"]+$/.test(c.thumbnail_url ?? '') ? c.thumbnail_url : '',
   creator: String(c.creator_name ?? ''), creatorId: String(c.creator_id ?? ''), createdAt: String(c.created_at ?? ''), views: Number(c.view_count) || 0,
 });
 
@@ -93,7 +94,14 @@ export class Intro {
   }
 
   config() {
-    try { return validateIntro(this.store.get('intro.settings', introDefaults)); } catch { return validateIntro(introDefaults); }
+    let saved = this.store.get('intro.settings', introDefaults);
+    // Версія 1: паміж кліпамі была жорсткая паўза 5 с. Аўтар папрасіў плаўную змену (2026-10-24) —
+    // старое значэнне па змаўчанні становіцца 0, а свядома выстаўленае іншае застаецца.
+    if (saved?.version === 1) {
+      saved = { ...saved, version: 2, clipPause: saved.clipPause === 5 ? 0 : saved.clipPause };
+      try { this.store.set('intro.settings', validateIntro(saved)); } catch {}
+    }
+    try { return validateIntro(saved); } catch { return validateIntro(introDefaults); }
   }
 
   save(body) {

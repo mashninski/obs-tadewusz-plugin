@@ -74,7 +74,7 @@ test('калода: без кліпаў — null', () => {
 
 test('налады інтро: прадвызначаныя, праверка палёў', () => {
   assert.equal(validateIntro({}).countdown, 600);
-  assert.equal(validateIntro({}).clipPause, 5);
+  assert.equal(validateIntro({}).clipPause, 0);
   const ok = validateIntro({ ...introDefaults, links: [{ id: 'a1', url: ' twitch.tv/mashninski ', label: 'Twitch', qr: true }] });
   assert.deepEqual(ok.links[0], { id: 'a1', url: 'twitch.tv/mashninski', label: 'Twitch', qr: true });
   assert.throws(() => validateIntro({ countdown: 5 }), /intro_countdown/);
@@ -84,12 +84,34 @@ test('налады інтро: прадвызначаныя, праверка п
   assert.throws(() => validateIntro({ links: Array.from({ length: 9 }, (_, i) => ({ id: `l${i}`, url: 'x.by' })) }), /intro_links/);
 });
 
+test('налады інтро: старая паўза 5 с па змаўчанні становіцца 0, свядомае значэнне застаецца', t => {
+  const twitch = { identity: null };
+  const s1 = store(t);
+  s1.set('intro.settings', { ...introDefaults, version: 1, clipPause: 5, finishText: 'Ужо' });
+  const a = new Intro({ store: s1, twitch }).config();
+  assert.equal(a.clipPause, 0);
+  assert.equal(a.finishText, 'Ужо');
+  assert.equal(s1.get('intro.settings').version, 2);
+  const s2 = store(t);
+  s2.set('intro.settings', { ...introDefaults, version: 1, clipPause: 2 });
+  assert.equal(new Intro({ store: s2, twitch }).config().clipPause, 2);
+});
+
+test('калода: peek паказвае наступны кліп, не мяняючы калоду, і на мяжы цыклаў таксама', () => {
+  const deck = new ClipDeck({ random: seeded(11) });
+  deck.update(clipList(4));
+  for (let i = 0; i < 12; i++) {
+    const next = deck.peek();
+    assert.equal(deck.next().id, next.id);
+  }
+});
+
 // ---------- Кліпы з Twitch ----------
 
 /** Twitch у памяці: N кліпаў, раўнамерна ад стварэння канала да цяпер; ліміт ~1000 на адзін запыт. */
 function clipsTwitch({ total, from, to, cap = 1000 }) {
   const clips = Array.from({ length: total }, (_, i) => ({
-    id: `clip-${i}`, title: `Кліп ${i}`, duration: 15 + (i % 40), creator_name: i % 3 ? 'Глядач' : 'Стрымер', creator_id: i % 3 ? '7' : '42',
+    id: `clip-${i}`, title: `Кліп ${i}`, thumbnail_url: `https://clips-media-assets2.twitch.tv/${i}-preview-480x272.jpg`, duration: 15 + (i % 40), creator_name: i % 3 ? 'Глядач' : 'Стрымер', creator_id: i % 3 ? '7' : '42',
     created_at: new Date(from + ((to - from) * (i + 0.5)) / total).toISOString(), view_count: i,
   }));
   const calls = [];
@@ -117,7 +139,7 @@ test('кліпы: усе з усёй гісторыі канала, з пагі�
   const all = await fetchAllClips(twitch, '42', { now: () => now });
   assert.equal(all.length, 3500);
   assert.equal(new Set(all.map(c => c.id)).size, 3500);
-  assert.deepEqual(Object.keys(all[0]).sort(), ['createdAt', 'creator', 'creatorId', 'duration', 'id', 'title', 'views']);
+  assert.deepEqual(Object.keys(all[0]).sort(), ['createdAt', 'creator', 'creatorId', 'duration', 'id', 'thumbnail', 'title', 'views']);
   // Сапраўды шчыльнае акно: 3000 кліпаў за месяц пры ліміце 1000 — праграма дзеліць акно і збірае ўсе.
   const denseAll = await fetchAllClips(dense, '42', { now: () => Date.UTC(2025, 1, 1) });
   assert.equal(denseAll.length, 3000);
