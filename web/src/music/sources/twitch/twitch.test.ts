@@ -8,8 +8,12 @@ import { RATE_WAIT_MS } from './api';
 import { createFakeTwitch } from './fake';
 import { chatText, createTwitchLink, STALE_MS, type RequestOutcome } from './twitch';
 
+/**
+ * Даць адпрацаваць асінхронным крокам сувязі (абяцанні, падзеі падробкі). Праз setImmediate, а не setTimeout:
+ * у Windows таймер спрацоўвае не раней чым праз ~15,6 мс, і тэсты з дзясяткамі крокаў упіраліся ў ліміт 5 с (B-007).
+ */
 const flush = async () => {
-  for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 1));
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
 };
 
 function setup(outcome: RequestOutcome = { ok: true, title: 'Песня', n: 1 }) {
