@@ -176,6 +176,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
       steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
       introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
+      pageSourceUrl: page => `${startPage}?page=${page}&port=${new URL(http.origin).port}`,
     }),
   }).catch(async error => {
     clearInterval(timer);

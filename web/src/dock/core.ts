@@ -116,7 +116,7 @@ export interface CoreState {
   history: { id: number; at: string; event: string }[];
   replyDefinitions: Record<string, [string, string]>;
   replyPlaceholders: Record<string, string[]>;
-  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; spotifyRedirect: string };
+  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; background: string; spotifyRedirect: string };
 }
 
 /** Каманда ядру. Памылка — `Error` з кодам (тэкст — праз `errorText`). */

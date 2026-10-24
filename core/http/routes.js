@@ -8,7 +8,7 @@ const id = value => { if (typeof value !== 'string' || !value || value.length > 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications,
     obs, steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
-    introSourceUrl } = ctx;
+    introSourceUrl, pageSourceUrl } = ctx;
 
   const state = () => {
     const vote = voting.snapshot();
@@ -28,7 +28,9 @@ export function routes(ctx) {
       replyDefinitions, replyPlaceholders,
       urls: {
         dock: `${baseUrl()}/`, overlay: `${baseUrl()}/overlay`, ticker: `${baseUrl()}/ticker?source=${ticker.source}`,
-        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`, spotifyRedirect: `${baseUrl()}/callback.html`,
+        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`,
+        // Фон для любой сцэны: праз старонку чакання — загрузіцца, нават калі OBS адкрыўся раней за праграму.
+        background: pageSourceUrl('background'), spotifyRedirect: `${baseUrl()}/callback.html`,
       },
     };
   };

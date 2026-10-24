@@ -1,6 +1,7 @@
 // Укладка «Інтро»: сцэна чакання перад стрымам — адлік, спасылкі (з QR), кліпы канала і паласа данатаў.
 // Змены захоўваюцца самі праз імгненне пасля праўкі; оверлей бярэ іх сам — сцэну перастварыць не трэба.
 import { useState } from 'preact/hooks';
+import { CopyRow } from '../music/ui/dock/MusicSettings';
 import { api, run, useDraft, type CoreState, type IntroConfig, type IntroLink } from './core';
 import { Card, dateTime, Hero, IconButton, moveItem, NumberField, Switch, TextField, toast, useSortable, type Tone } from './ui';
 
@@ -52,6 +53,11 @@ export function IntroTab({ state }: { state: CoreState }) {
       <Card title="Кліпы" actions={<button class="btn" disabled={intro.fetching} onClick={() => run(() => api('/api/intro/refresh'), 'Спіс кліпаў абноўлены')}>Абнавіць спіс</button>}
         help={'Усе кліпы канала, у тым ліку зробленыя гледачамі, — у перамешаным парадку без паўтораў, пакуль не пакажуцца ўсе; потым калода перамешваецца нанова.\n\nКліпы мяняюцца плаўна: пакуль наступны грузіцца, відаць яго кадр. «Паўза» — колькі секунд трымаць гэты кадр перад кліпам (0 — адразу).\n\nСпіс абнаўляецца з Twitch, калі сцэна становіцца актыўнай, і кожныя 5 хвілін, пакуль яна ў эфіры: новыя кліпы трапляюць у калоду, не перарываючы паказ. Без сувязі з Twitch грае апошні атрыманы спіс.\n\nКліпы паказвае афіцыйны плэер Twitch, файлы не спампоўваюцца. Гук — праз OBS: гучнасць крыніцы «Tadewusz · Інтро» ў мікшары.'}>
         <NumberField label="Паўза паміж кліпамі" suffix="с" value={draft.clipPause} min={0} max={120} onChange={(clipPause) => set({ clipPause })} />
+      </Card>
+
+      <Card title="Фон для іншых сцэн"
+        help={'Той жа фон, што ў інтро, — асобнай старонкай: ізалініі павольна і бясконца дрэйфуюць (малююцца на хаду, без паўтораў і склеек).\n\n1. У патрэбнай сцэне OBS дадайце крыніцу «Браўзер»\n2. Зніміце галачку «Лакальны файл» і ўстаўце гэты адрас\n3. Шырыня і вышыня — як у вашай сцэны (напрыклад, 1920 і 1080)\n4. Перацягніце крыніцу ў самы ніз спіса, каб яна была фонам'}>
+        <CopyRow value={state.urls.background} />
       </Card>
 
       <Card title="Данаты">

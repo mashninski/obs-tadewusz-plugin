@@ -8,7 +8,7 @@ const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg',
 };
-const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html', '/intro': 'intro.html' };
+const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html', '/intro': 'intro.html', '/background': 'background.html' };
 const SAFE_ERROR = /^[a-z0-9_:-]{1,80}$/;
 const BODY_LIMIT = 256 * 1024;
 

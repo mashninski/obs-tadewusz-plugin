@@ -53,6 +53,7 @@ export function StatusSection({ state, music }: { state: CoreState; music: DockC
           <div class="field"><span>Бягучы радок</span><CopyRow value={state.urls.ticker} /></div>
           <div class="field"><span>Музыка</span><CopyRow value={state.urls.music} /></div>
           <div class="field"><span>Інтро</span><CopyRow value={state.urls.intro} /></div>
+          <div class="field"><span>Фон (для любой сцэны)</span><CopyRow value={state.urls.background} /></div>
         </div>
       </Card>
 

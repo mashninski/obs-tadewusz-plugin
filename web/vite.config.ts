@@ -2,8 +2,8 @@ import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-// Старонкі: док, оверлеі (галасаванне, бягучы радок, музыка, інтро) і старонка вяртання са Spotify.
-const pages = ['dock', 'overlay', 'ticker', 'music', 'intro', 'callback'];
+// Старонкі: док, оверлеі (галасаванне, бягучы радок, музыка, інтро, фон) і старонка вяртання са Spotify.
+const pages = ['dock', 'overlay', 'ticker', 'music', 'intro', 'background', 'callback'];
 
 /** Версія зборкі — кароткі хэш commit (відаць на ўкладцы «Стан»; па ёй адкрытыя старонкі бачаць абнаўленне). */
 const version = (() => {

@@ -6,7 +6,7 @@
 <!--
   Старонка чакання для дока і крыніц OBS. OBS можа адкрыць крыніцы раней, чым запусціцца праграма;
   гэтая лакальная старонка чакае ядро і тады пераходзіць на патрэбную старонку.
-  Параметры: page=dock|overlay|ticker|music|intro, port (па змаўчанні 18745); астатнія перадаюцца далей.
+  Параметры: page=dock|overlay|ticker|music|intro|background, port (па змаўчанні 18745); астатнія перадаюцца далей.
 -->
 <style>
   :root { color-scheme: dark; font: 13px 'Segoe UI', sans-serif; background: #121212; color: #ddd; }
@@ -18,7 +18,7 @@
   const params = new URLSearchParams(location.search);
   const page = params.get('page') || 'dock';
   const port = /^\d{4,5}$/.test(params.get('port') || '') ? params.get('port') : '18745';
-  const paths = { dock: '/', overlay: '/overlay', ticker: '/ticker', music: '/music', intro: '/intro' };
+  const paths = { dock: '/', overlay: '/overlay', ticker: '/ticker', music: '/music', intro: '/intro', background: '/background.html' };
   params.delete('page');
   params.delete('port');
   const base = 'http://127.0.0.1:' + port;
