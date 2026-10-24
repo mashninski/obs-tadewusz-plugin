@@ -20,9 +20,14 @@ const REFRESH_MS = 5 * 60_000;
  */
 /**
  * Плэеру пасля загрузкі патрэбны час, каб падрыхтавацца: тады пасля паказу ён пачынае адразу,
- * без чорнага экрана і значка ▶ (з 1 с значок яшчэ мільгаў — замерана ў OBS).
+ * без чорнага экрана і значка ▶ (з 1 с значок яшчэ мільгаў — замерана ў OBS). Пакуль ён рыхтуецца,
+ * відаць першы кадр кліпа. Калі кадра няма (стары спіс без прэв’ю), чакаць няма сэнсу — плэер ідзе адразу.
  */
 const WARM_MS = 3000;
+/** Колькі першы кадр «праяўляецца» (з размыцця і крыху буйней — да рэзкага, роўна як першы кадр відэа). */
+const SETTLE_MIN_MS = 2600;
+/** Першы кліп пасля актывацыі: плэер толькі пачынае грузіцца — кадр праяўляецца павольней, увесь гэты час. */
+const SETTLE_COLD_MS = 5500;
 /** Падрыхтаваны плэер пачынае праз столькі пасля таго, як стаў бачным. */
 const PLAY_AFTER_SHOW_MS = 500;
 /** Наступны кадр накрывае кліп крыху раней за канец (пераход — 0,6 с). */
@@ -145,9 +150,11 @@ const saveDeck = () => { try { localStorage.setItem(DECK_KEY, JSON.stringify(dec
 let player = { timer: 0, clip: null, layer: null };
 let layerZ = 1;
 
-function showIdle() {
+/** Пустая рамка: `text` — толькі калі кліпаў сапраўды няма (пакуль спіс грузіцца — без надпісу). */
+function showIdle(text = '') {
+  $('idleText').textContent = text;
   $('idle').classList.remove('hidden');
-  $('clipTitle').parentElement.classList.add('hidden');
+  $('caption').classList.add('hidden');
   for (const layer of $('screen').querySelectorAll('.layer')) fadeOut(layer);
 }
 
@@ -177,7 +184,7 @@ function fadeOut(layer) {
 const largeThumb = (url) => url.replace(/-480x272\.(jpg|png)$/, '-1280x720.$1');
 
 /** Кадр-прэв’ю кліпа з Twitch (першы кадр); калі яго няма — мяккі градыент. */
-function thumbLayer(clip) {
+function thumbLayer(clip, settleMs) {
   const box = document.createElement('div');
   box.className = 'thumb';
   if (clip.thumbnail) {
@@ -185,11 +192,27 @@ function thumbLayer(clip) {
     img.src = largeThumb(clip.thumbnail);
     img.onerror = () => { if (img.src !== clip.thumbnail) img.src = clip.thumbnail; };
     img.alt = '';
+    img.style.setProperty('--settle', `${settleMs}ms`);
     box.append(img);
+    // Кадр праяўляецца і «асядае» на месца, калі ўжо бачны.
+    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('settled')));
   } else {
     box.classList.add('empty');
   }
   return addLayer(box);
+}
+
+/** Подпіс у адзін радок: назва · аўтар кліпа; мяняецца праз мяккае знікненне. */
+function setCaption(clip) {
+  const caption = $('caption');
+  const wasShown = !caption.classList.contains('hidden');
+  caption.classList.add('hidden');
+  setTimeout(() => {
+    $('clipTitle').textContent = clip.title;
+    $('clipAuthor').textContent = clip.creator;
+    $('clipBy').hidden = !clip.creator;
+    caption.classList.remove('hidden');
+  }, wasShown ? 300 : 0);
 }
 
 function playerLayer(clip) {
@@ -235,16 +258,16 @@ function playNext() {
   saveDeck();
   if (!clip) {
     player = { timer: 0, clip: null, layer: null };
-    showIdle();
+    showIdle('Хутка пачынаем');
     return;
   }
-  // Кадр наступнага кліпа накрывае папярэдні (ці фон), подпіс мяняецца разам з ім.
-  $('idle').classList.add('hidden');
-  reveal(thumbLayer(clip));
-  $('clipTitle').textContent = clip.title;
-  $('clipBy').textContent = clip.creator ? `кліп: ${clip.creator}` : '';
-  $('clipTitle').parentElement.classList.remove('hidden');
   const hold = Math.max(COVER_MS, (state.config?.clipPause ?? 0) * 1000);
+  const warm = standby?.clip.id === clip.id && standby.frame.dataset.loaded;
+  // Плэер пачынае грузіцца адразу (празрысты), пакуль кадр наступнага кліпа накрывае папярэдні.
+  prepare(clip);
+  $('idle').classList.add('hidden');
+  reveal(thumbLayer(clip, Math.max(warm ? SETTLE_MIN_MS : SETTLE_COLD_MS, hold)));
+  setCaption(clip);
   player = { clip, timer: setTimeout(() => startPlayer(clip), hold), layer: null };
 }
 
@@ -272,11 +295,12 @@ function startPlayer(clip) {
     }, PLAY_AFTER_SHOW_MS + 1500);
     player.timer = setTimeout(playNext, Math.max(1000, PLAY_AFTER_SHOW_MS + clip.duration * 1000 - END_EARLY_MS));
   };
+  const warm = clip.thumbnail ? WARM_MS : 0;
   const loadedFor = frame.dataset.loaded ? performance.now() - Number(frame.dataset.loaded) : -1;
-  if (loadedFor >= WARM_MS) show();
-  else if (loadedFor >= 0) player.timer = setTimeout(show, WARM_MS - loadedFor);
+  if (loadedFor >= warm) show();
+  else if (loadedFor >= 0) player.timer = setTimeout(show, warm - loadedFor);
   else {
-    frame.addEventListener('load', () => { player.timer = setTimeout(show, WARM_MS); });
+    frame.addEventListener('load', () => { player.timer = setTimeout(show, warm); });
     player.timer = setTimeout(show, LOAD_TIMEOUT_MS);
   }
 }
@@ -289,6 +313,7 @@ async function loadClips() {
     saveDeck();
     // Пустая калода атрымала кліпы — пачаць; інакш новыя проста чакаюць у калодзе, бягучы кліп не перарываецца.
     if (wasEmpty && deck.size && !player.clip) playNext();
+    if (!deck.size && !player.clip) showIdle('Хутка пачынаем');
   } catch {
     // Праграма не адказала — граем далей па тым, што ўжо ёсць.
   }
