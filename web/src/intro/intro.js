@@ -33,6 +33,12 @@ const START_MS = 1100;
 const PLAYS_AFTER_MS = 500;
 /** Уваход карткі і ўваход кліпа — хуткія касыя зрэзы. */
 const CARD_IN_MS = 280;
+/**
+ * Стары плэер спачатку пераводзіцца на пустую старонку і толькі потым выдаляецца, а новы стартуе пасля гэтага.
+ * Калі выдаліць плэер са гукам на хаду (ці запусціць новы адначасова), гук у OBS «спатыкаецца»,
+ * і наступны кліп ідзе рыўкамі (замерана ў OBS 2026-10-24).
+ */
+const QUIET_MS = 300;
 const WIPE_MS = 300;
 /** Картка накрывае кліп крыху раней за канец — экран рэкамендацый Twitch не відаць. */
 const END_EARLY_MS = 450;
@@ -313,7 +319,8 @@ function playNext() {
   const pause = (state.config?.clipPause ?? 0) * 1000;
   debugLine(`next ${clip.id.slice(0, 6)}`);
 
-  let cover;
+  const since = performance.now();
+  let cover, startAfter = 0;
   if (!current) {
     // Першы кліп пасля актывацыі: праяўляецца яго першы кадр, пакуль плэер грузіцца.
     cover = thumbLayer(clip);
@@ -324,13 +331,16 @@ function playNext() {
     void wipeIn(cover, CARD_IN_MS);
     setCaption(clip);
     const old = current.frame;
-    later(CARD_IN_MS, () => old.remove());
+    later(CARD_IN_MS, () => { old.src = 'about:blank'; });
+    later(CARD_IN_MS + QUIET_MS, () => old.remove());
+    startAfter = CARD_IN_MS + QUIET_MS;
   }
   current = { clip, frame };
 
   whenWarm(frame, () => {
     // Плэер становіцца бачным за кадрам: Twitch запускае кліп (значок ▶ — там). Паўза — картка стаіць даўжэй.
-    later(Math.max(0, CARD_IN_MS + pause - START_MS), () => {
+    const wait = Math.max(startAfter, CARD_IN_MS + pause - START_MS);
+    later(Math.max(0, since + wait - performance.now()), () => {
       standby = null;
       frame.style.opacity = '1';
       const startedAt = performance.now();
