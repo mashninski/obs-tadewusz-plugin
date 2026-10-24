@@ -102,6 +102,9 @@ html, body {
   flex-direction: column;
   --k: 1;
 }
+#linksTitle, .link-label, .countdown-time, .finish, .clip-title {
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.45);
+}
 #linksTitle {
   margin: 0 0 calc(44px * var(--k));
   font-size: calc(68px * var(--k));
@@ -154,6 +157,7 @@ html, body {
   padding: calc(8px * var(--k));
   border-radius: calc(10px * var(--k));
   background: var(--ivory);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.3);
 }
 .qr svg { display: block; width: 100%; height: 100%; }
 
@@ -185,6 +189,8 @@ html, body {
   outline: 1px solid var(--line);
   overflow: hidden;
   isolation: isolate;
+  /* Цень звонку рамкі — нічога не ляжа паверх плэера. */
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 .layer {
   position: absolute;
@@ -197,8 +203,18 @@ html, body {
   pointer-events: none;
 }
 .layer.shown { opacity: 1; }
-/* Плэер з’яўляецца адразу (празрысты плэер Twitch не запускае); пакуль ён грузіцца, праз яго відаць кадр. */
+/* Плэер з’яўляецца адразу (празрысты плэер Twitch не запускае). */
 .player { transition: none; background: transparent; }
+/* Паласа «нарэзкі»: бірузовая, з тонкімі касымі штрыхамі; форму і месца задае clip-path з JS. */
+.band {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(112deg, rgba(237, 230, 216, 0.16) 0 3px, transparent 3px 22px),
+    linear-gradient(112deg, #2f8f8a 0%, #4fb8b8 45%, #8fd6cf 52%, #4fb8b8 60%, #2a7f7a 100%);
+}
+.band[hidden] { display: none; }
 .thumb { background: #050807; overflow: hidden; }
 /* Кадра няма (стары спіс без прэв’ю) — проста фон рамкі, без залівак. */
 .thumb.empty { background: transparent; }
@@ -294,6 +310,7 @@ html, body {
   padding: 0 var(--pad-x);
   border-top: 1px solid var(--line);
   background: rgba(10, 15, 13, 0.82);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
 }
 .donations[hidden] { display: none; }
 .donations-title { font-size: 28px; font-weight: 800; }
