@@ -1,7 +1,7 @@
 // API дока і оверлеяў.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { ensureIntroScene } from '../obs/intro-scene.js';
+import { ensureIntroScene, ensureOutroScene } from '../obs/intro-scene.js';
 import { ensureSeasonSource } from '../obs/season-source.js';
 
 const bool = value => { if (typeof value !== 'boolean') throw new Error('value_format'); return value; };
@@ -9,8 +9,8 @@ const id = value => { if (typeof value !== 'string' || !value || value.length > 
 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications,
-    obs, steam, music, legacyMusic, intro, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
-    introSourceUrl, pageSourceUrl } = ctx;
+    obs, steam, music, legacyMusic, intro, outro, raid, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
+    introSourceUrl, outroSourceUrl, pageSourceUrl } = ctx;
 
   const state = () => {
     const vote = voting.snapshot();
@@ -27,6 +27,8 @@ export function routes(ctx) {
       steam: steam.state,
       backups: backups.snapshot(),
       intro: intro.snapshot(),
+      outro: outro.snapshot(),
+      raid: raid.snapshot(),
       season: season.snapshot(),
       history: store.history(),
       replyDefinitions, replyPlaceholders,
@@ -69,6 +71,8 @@ export function routes(ctx) {
     '/intro/clips': () => intro.clips(),
     // Актывацыя сцэны і кожныя ~5 хвілін, пакуль яна ў эфіры: абнавіць спіс кліпаў (не часцей за раз у хвіліну).
     '/intro/activate': () => { intro.refresh().catch(() => {}); return { ok: true }; },
+    // Старонка ў рэжыме аўтра: надпіс, спасылкі, рэйд (дэдлайн адліку і час ядра — як у галасаванні).
+    '/outro/state': () => outro.overlayState(),
     // Старонка «Сезон»: налады і адрасы сваіх карцінак бягучай тэмы (апытанне).
     '/season/state': () => season.overlayState(),
     '/season/image': (url, res) => {
@@ -214,6 +218,18 @@ export function routes(ctx) {
       return intro.snapshot();
     },
     '/api/intro/scene': () => ensureIntroScene(obs, { url: introSourceUrl() }),
+
+    // --- Аўтра і рэйд ---
+    '/api/outro/config': body => outro.save(body),
+    '/api/outro/scene': () => ensureOutroScene(obs, { url: outroSourceUrl() }),
+    '/api/raid/channels': async body => {
+      const list = await raid.channels({ force: body.force === true });
+      if (list.error) throw new Error(list.error);
+      return raid.snapshot();
+    },
+    '/api/raid/start': body => run(() => raid.start(id(body.id))),
+    '/api/raid/cancel': () => run(() => raid.cancel()),
+    '/api/raid/reset': () => raid.reset(),
 
     // --- Сезон ---
     '/api/season/config': body => season.save(body),

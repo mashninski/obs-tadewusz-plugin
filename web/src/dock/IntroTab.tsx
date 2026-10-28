@@ -1,6 +1,8 @@
-// Укладка «Інтро»: сцэна чакання перад стрымам — адлік, спасылкі (з QR), кліпы канала і паласа данатаў.
+// Укладка «Інтро / Аўтра». Інтро — сцэна чакання перад стрымам: адлік, спасылкі (з QR), кліпы канала і паласа данатаў.
+// Аўтра (OutroTab.tsx) — сцэна ў канцы стрыму і рэйд.
 // Змены захоўваюцца самі праз імгненне пасля праўкі; оверлей бярэ іх сам — сцэну перастварыць не трэба.
 import { useState } from 'preact/hooks';
+import { OutroTab } from './OutroTab';
 import { CopyRow } from '../music/ui/dock/MusicSettings';
 import { api, run, useDraft, type CoreState, type IntroConfig, type IntroLink } from './core';
 import { Card, dateTime, Hero, IconButton, moveItem, NumberField, Switch, TextField, toast, useSortable, type Tone } from './ui';
@@ -21,9 +23,36 @@ export const formatDuration = (seconds: number) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
 };
 
-const linksReady = (links: IntroLink[]) => links.every((l) => l.url.trim() && !/\s/.test(l.url.trim()));
+export const linksReady = (links: IntroLink[]) => links.every((l) => l.url.trim() && !/\s/.test(l.url.trim()));
 
+const PART_KEY = 'tadewusz.dock.introPart';
+
+/** Перамыкач «Інтро» / «Аўтра»; выбар памятаецца ў доку. Пакуль ідзе рэйд — адкрываецца «Аўтра». */
 export function IntroTab({ state }: { state: CoreState }) {
+  const [part, setPart] = useState<'intro' | 'outro'>(() => {
+    try { return localStorage.getItem(PART_KEY) === 'outro' ? 'outro' : 'intro'; } catch { return 'intro'; }
+  });
+  const raiding = ['starting', 'pending', 'unconfirmed'].includes(state.raid.current?.phase ?? '');
+  const shown = raiding ? 'outro' : part;
+  const select = (next: 'intro' | 'outro') => {
+    setPart(next);
+    try { localStorage.setItem(PART_KEY, next); } catch {}
+  };
+  return (
+    <>
+      <div class="segmented" role="tablist">
+        {(['intro', 'outro'] as const).map((id) => (
+          <button key={id} role="tab" aria-selected={shown === id} class={shown === id ? 'active' : ''} onClick={() => select(id)}>
+            {id === 'intro' ? 'Інтро' : 'Аўтра'}
+          </button>
+        ))}
+      </div>
+      {shown === 'intro' ? <IntroSection state={state} /> : <OutroTab state={state} />}
+    </>
+  );
+}
+
+function IntroSection({ state }: { state: CoreState }) {
   const intro = state.intro;
   const [draft, update] = useDraft<IntroConfig>(intro.config, (config) => api('/api/intro/config', config));
   const set = (patch: Partial<IntroConfig>, ready = true) => {
@@ -91,7 +120,11 @@ function Countdown({ draft, set }: { draft: IntroConfig; set: (patch: Partial<In
   );
 }
 
-function Links({ draft, set }: { draft: IntroConfig; set: (patch: Partial<IntroConfig>, ready?: boolean) => void }) {
+type LinksDraft = { linksTitle: string; links: IntroLink[] };
+
+export function Links({ draft, set, help }: {
+  draft: LinksDraft; set: (patch: Partial<LinksDraft>, ready?: boolean) => void; help?: string;
+}) {
   const links = draft.links;
   const change = (index: number, patch: Partial<IntroLink>) => set({ links: links.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   const sortable = useSortable((from, to) => set({ links: moveItem(links, from, to) }));
@@ -99,7 +132,7 @@ function Links({ draft, set }: { draft: IntroConfig; set: (patch: Partial<IntroC
     <Card title="Спасылкі" flush
       actions={<IconButton icon="plus" label="Новая спасылка" disabled={links.length >= 8}
         onClick={() => set({ links: [...links, { id: newId(), url: '', label: '', qr: false }] }, false)} />}
-      help="Спіс злева на экране інтро. Адрас — як яго ўбачаць гледачы (https:// можна не пісаць), подпіс — над ім. QR — квадратны код побач, яго можна сканаваць тэлефонам. Парадак — перацягваннем за ⠿.">
+      help={help ?? "Спіс злева на экране інтро. Адрас — як яго ўбачаць гледачы (https:// можна не пісаць), подпіс — над ім. QR — квадратны код побач, яго можна сканаваць тэлефонам. Парадак — перацягваннем за ⠿."}>
       <div class="add-row" style={{ borderTop: 0 }}>
         <input value={draft.linksTitle} maxLength={60} placeholder="Загаловак блока" aria-label="Загаловак блока спасылак"
           onInput={(e) => set({ linksTitle: e.currentTarget.value })} />

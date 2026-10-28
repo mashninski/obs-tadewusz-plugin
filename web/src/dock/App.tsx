@@ -1,4 +1,4 @@
-// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, інтро, сезон і «Сістэма» (стан, падключэнні, налады).
+// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, інтро / аўтра, сезон і «Сістэма» (стан, падключэнні, налады).
 import { useEffect, useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
 import { MusicHero, MusicRules, MusicSound } from '../music/ui/dock/MusicSettings';
@@ -16,7 +16,7 @@ const TABS = [
   { id: 'voting', label: 'Галасаванне' },
   { id: 'ticker', label: 'Радок' },
   { id: 'music', label: 'Музыка' },
-  { id: 'intro', label: 'Інтро' },
+  { id: 'intro', label: 'Інтро / Аўтра' },
   { id: 'season', label: 'Сезон' },
   { id: 'system', label: 'Сістэма' },
 ] as const;

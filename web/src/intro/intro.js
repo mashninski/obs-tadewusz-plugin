@@ -1,4 +1,6 @@
 // Оверлей інтро: спасылкі (з QR), кліпы канала афіцыйным плэерам Twitch, адлік да пачатку стрыму.
+// `?mode=outro` — аўтра: замест адліку вялікі надпіс, а калі пачаўся рэйд — картка канала на месцы кліпаў
+// і адлік да моманту, калі ў Twitch можна націснуць Raid Now.
 // Налады бярэ з праграмы кожныя 2 с — змены з дока відаць адразу, без перастварэння сцэны.
 // Крыніца ў OBS выключаецца, калі сцэна не бачная, і перазагружаецца пры актывацыі: адлік пачынаецца нанова,
 // спіс кліпаў абнаўляецца. Пакуль сцэна ў эфіры — спіс абнаўляецца раз у 5 хвілін, калода працягваецца.
@@ -47,9 +49,12 @@ const SETTLE_COLD_MS = 5500;
 /** Калі старонка плэера не загрузілася, кліп усё роўна запускаецца. */
 const LOAD_TIMEOUT_MS = 10_000;
 const DECK_KEY = 'tadewusz.intro.deck';
+const MODE = new URLSearchParams(location.search).get('mode') === 'outro' ? 'outro' : 'intro';
+const IDLE_TEXT = MODE === 'outro' ? 'Дзякуй, што былі разам' : 'Хутка пачынаем';
 
 const $ = (id) => document.getElementById(id);
-const state = { config: null, restartAt: null, clipsVersion: undefined, countdownFrom: 0, countdownSeconds: 0 };
+const state = { config: null, restartAt: null, clipsVersion: undefined, countdownFrom: 0, countdownSeconds: 0, raid: null, clockOffset: 0 };
+document.documentElement.dataset.mode = MODE;
 
 // ---------- Кадр ----------
 
@@ -141,7 +146,7 @@ function startCountdown(seconds) {
 const two = (n) => String(n).padStart(2, '0');
 
 function tickCountdown() {
-  if (!state.config) return;
+  if (!state.config || MODE === 'outro') return;
   const left = Math.max(0, Math.ceil(state.countdownSeconds - (performance.now() - state.countdownFrom) / 1000));
   const done = left === 0;
   const h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
@@ -313,10 +318,11 @@ function wipeIn(el, ms) {
 }
 
 function playNext() {
+  if (state.raid) return;
   token++;
   const clip = deck.next();
   saveDeck();
-  if (!clip) { showIdle('Хутка пачынаем'); return; }
+  if (!clip) { showIdle(IDLE_TEXT); return; }
   prepare(clip);
   $('idle').classList.add('hidden');
   const frame = standby.frame;
@@ -376,8 +382,8 @@ async function loadClips() {
     deck.update(clips);
     saveDeck();
     // Пустая калода атрымала кліпы — пачаць; інакш новыя проста чакаюць у калодзе, бягучы кліп не перарываецца.
-    if (wasEmpty && deck.size && !current) playNext();
-    if (!deck.size && !current) showIdle('Хутка пачынаем');
+    if (wasEmpty && deck.size && !current && !state.raid) playNext();
+    if (!deck.size && !current && !state.raid) showIdle(IDLE_TEXT);
   } catch {
     // Праграма не адказала — граем далей па тым, што ўжо ёсць.
   }
@@ -387,8 +393,9 @@ async function loadClips() {
 
 async function poll() {
   try {
-    const next = await get('/intro/state');
-    applyConfig(next.config, next.restartAt);
+    const next = await get(`/${MODE}/state`);
+    if (MODE === 'outro') applyOutro(next);
+    else applyConfig(next.config, next.restartAt);
     if (next.clips.fetchedAt !== state.clipsVersion) {
       state.clipsVersion = next.clips.fetchedAt;
       await loadClips();
@@ -404,9 +411,98 @@ const activate = () => fetch('/intro/activate', { cache: 'no-store' }).catch(() 
 // Актывацыя сцэны: адлік і спіс кліпаў — нанова (калі OBS не перазагрузіў старонку сам).
 addEventListener('obsSourceActiveChanged', (event) => {
   if (!event.detail?.active || !state.config) return;
-  startCountdown(state.config.countdown);
+  if (MODE === 'intro') startCountdown(state.config.countdown);
   void activate();
 });
+
+// ---------- Аўтра і рэйд ----------
+
+function applyOutro(next) {
+  const previous = state.config;
+  state.config = next.config;
+  if (JSON.stringify(previous?.links) !== JSON.stringify(next.config.links) || previous?.linksTitle !== next.config.linksTitle) renderLinks(next.config);
+  $('countdownLabel').hidden = true;
+  $('countdownTime').hidden = true;
+  $('outroText').textContent = next.config.text;
+  // Час ядра: адлік рэйду ідзе па ім, а не па гадзінніку камп’ютара OBS.
+  state.clockOffset = next.serverNow - Date.now();
+  if ((next.raid?.id ?? null) !== (state.raid?.id ?? null)) next.raid ? showRaid(next.raid) : hideRaid();
+  $('outroText').hidden = !!state.raid;
+}
+
+/** Кліпы спыняюцца: стары плэер спачатку `about:blank` (без «спатыкання» гуку), потым выдаляецца. */
+function suspendClips() {
+  token++;
+  for (const el of [...$('players').children]) {
+    if (el.tagName === 'IFRAME') el.src = 'about:blank';
+    setTimeout(() => el.remove(), QUIET_MS);
+  }
+  current = null;
+  standby = null;
+  $('caption').classList.add('hidden');
+  $('idle').classList.add('hidden');
+}
+
+const plural = (n, one, few, many) => {
+  const d = n % 10, h = n % 100;
+  return d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
+};
+const viewersText = (n) => `${n.toLocaleString('be-BY')} ${plural(n, 'глядач', 'гледачы', 'гледачоў')}`;
+
+function showRaid(raid) {
+  state.raid = raid;
+  suspendClips();
+  const t = raid.target;
+  $('raidShot').src = t.thumbnail || '';
+  $('raidShot').hidden = !t.thumbnail;
+  $('raidAvatar').src = t.avatar || '';
+  $('raidAvatar').hidden = !t.avatar;
+  $('raidName').textContent = t.name;
+  $('raidMature').hidden = !t.mature;
+  $('raidGame').textContent = t.game;
+  $('raidTitle').textContent = t.title;
+  $('raidViewers').textContent = viewersText(t.viewers);
+  $('raidHeadingName').textContent = t.name;
+  const card = $('raidCard');
+  card.hidden = false;
+  card.classList.remove('leaving');
+  void wipeIn(card, CARD_IN_MS);
+  $('raidInfo').hidden = false;
+  $('outroText').hidden = true;
+  lastSecond = null;
+  requestAnimationFrame(tickRaid);
+}
+
+function hideRaid() {
+  state.raid = null;
+  $('raidInfo').hidden = true;
+  $('outroText').hidden = false;
+  const card = $('raidCard');
+  card.classList.add('leaving');
+  setTimeout(() => { if (!state.raid) { card.hidden = true; card.classList.remove('leaving'); } }, 500);
+  if (deck.size) playNext();
+  else showIdle(IDLE_TEXT);
+}
+
+/** Адлік рэйду: секунды буйна, пад імі паласа, што плаўна змяншаецца. На нулі трымаецца 0. */
+let lastSecond = null;
+function tickRaid() {
+  const raid = state.raid;
+  if (!raid) return;
+  const left = Math.max(0, raid.deadline - (Date.now() + state.clockOffset));
+  const total = Math.max(1, raid.deadline - raid.startedAt);
+  const second = Math.ceil(left / 1000);
+  if (second !== lastSecond) {
+    lastSecond = second;
+    const time = $('raidTime');
+    time.textContent = String(second);
+    time.classList.remove('tick');
+    void time.offsetWidth;
+    time.classList.add('tick');
+  }
+  $('raidBar').style.transform = `scaleX(${(left / total).toFixed(4)})`;
+  if (left > 0) requestAnimationFrame(tickRaid);
+}
 
 showIdle();
 void activate();

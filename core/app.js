@@ -1,4 +1,4 @@
-// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка, інтро і HTTP.
+// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка, інтро / аўтра з рэйдам і HTTP.
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,6 +21,9 @@ import { routeTickerAudio, tickerSourceStatus } from './obs/ticker-source.js';
 import { Obs } from './obs/obs.js';
 import { Steam } from './steam/steam.js';
 import { Intro } from './intro/intro.js';
+import { Outro } from './outro/outro.js';
+import { Raid } from './raid/raid.js';
+import { outroOnAir } from './obs/intro-scene.js';
 import { Season } from './season/season.js';
 import { MusicBridge } from './music/bridge.js';
 import { LegacyMusicRewards } from './music/legacy-rewards.js';
@@ -110,6 +113,8 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
 
   const legacyMusic = new LegacyMusicRewards({ store, fetchImpl, log });
   const intro = new Intro({ store, twitch, log });
+  const raid = new Raid({ twitch, log, countdown: () => outro.config().raidCountdown });
+  const outro = new Outro({ store, intro, raid });
   const season = new Season({ store, dataDir, log });
   // Сцэна «Інтро» адкрывае старонку праз лакальную старонку чакання (як і астатнія крыніцы): яна дачакаецца ядра.
   const startPage = pathToFileURL(fileURLToPath(new URL('../obs/start.html', import.meta.url))).href;
@@ -117,6 +122,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   const run = serialQueue();
   eventsub.onEvent((type, event, messageId) => run(async () => {
     try {
+      if (raid.onEvent(type, event)) return;
       if (!(await votingReception.onEvent(type, event, messageId))) await tickerReception.onEvent(type, event, messageId);
     } catch (error) {
       log('warn', 'event.failed', errorCode(error));
@@ -160,11 +166,21 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     if (ticker.consumer()) tickerRefreshTried = false;
   };
 
+  // Ці «Аўтра» ў эфіры — для папярэджання ў доку пры рэйдзе (сцэна сама не пераключаецца, ADR-027).
+  let outroCheckAt = 0;
+  const checkOutroScene = async () => {
+    if (Date.now() < outroCheckAt) return;
+    outroCheckAt = Date.now() + 3000;
+    raid.outroOnAir = await outroOnAir(obs);
+  };
+
   let stopping = false;
   const loop = async () => {
     if (stopping) return;
     await obs.tick().catch(() => {});
     await checkTickerSource().catch(() => {});
+    await checkOutroScene().catch(() => {});
+    raid.tick();
     ticker.tick();
     try { voice.pump(ticker); } catch (error) { log('warn', 'voice.pump', errorCode(error)); }
     await run(async () => {
@@ -185,9 +201,10 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     port, webRoot, session, version, log,
     ...routes({
       store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications, obs,
-      steam, music, legacyMusic, intro, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
+      steam, music, legacyMusic, intro, outro, raid, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
       introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
+      outroSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}&mode=outro`,
       pageSourceUrl: page => `${startPage}?page=${page}&port=${new URL(http.origin).port}`,
     }),
   }).catch(async error => {
@@ -219,5 +236,5 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     log('info', 'app.stopped');
   })();
 
-  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, season, obs, close };
+  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, outro, raid, season, obs, close };
 }

@@ -24,6 +24,18 @@ export const introDefaults = {
 const plain = (value, min, max) => typeof value === 'string' && value.trim().length >= min && value.length <= max && !/[\p{Cc}\p{Cf}]/u.test(value);
 const inRange = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 
+/** Спасылкі з QR (інтро і аўтра): не больш за 8; `prefix` — пачатак кода памылкі. */
+export function validateLinks(list, prefix) {
+  if (!Array.isArray(list) || list.length > 8) throw new Error(`${prefix}_links`);
+  return list.map(link => {
+    if (!plain(link?.url, 1, 200) || /\s/.test(link.url.trim()) || !plain(link.label ?? '', 0, 60) || typeof (link.qr ?? false) !== 'boolean'
+      || !/^[a-z0-9]{1,24}$/i.test(link.id ?? '')) throw new Error(`${prefix}_link`);
+    return { id: link.id, url: link.url.trim(), label: (link.label ?? '').normalize('NFKC').trim(), qr: link.qr ?? false };
+  });
+}
+
+export const plainText = plain;
+
 export function validateIntro(input) {
   const value = { ...introDefaults, ...input };
   if (!inRange(value.countdown, 10, 6 * 3600)) throw new Error('intro_countdown');
@@ -31,12 +43,7 @@ export function validateIntro(input) {
   if (!plain(value.linksTitle, 0, 60)) throw new Error('intro_links_title');
   if (!inRange(value.clipPause, 0, 120)) throw new Error('intro_clip_pause');
   if (typeof value.donations !== 'boolean') throw new Error('intro_options');
-  if (!Array.isArray(value.links) || value.links.length > 8) throw new Error('intro_links');
-  const links = value.links.map(link => {
-    if (!plain(link?.url, 1, 200) || /\s/.test(link.url.trim()) || !plain(link.label ?? '', 0, 60) || typeof (link.qr ?? false) !== 'boolean'
-      || !/^[a-z0-9]{1,24}$/i.test(link.id ?? '')) throw new Error('intro_link');
-    return { id: link.id, url: link.url.trim(), label: (link.label ?? '').normalize('NFKC').trim(), qr: link.qr ?? false };
-  });
+  const links = validateLinks(value.links, 'intro');
   return {
     version: 2, countdown: value.countdown, finishText: value.finishText.normalize('NFKC').trim(),
     linksTitle: value.linksTitle.normalize('NFKC').trim(), links, clipPause: value.clipPause, donations: value.donations,

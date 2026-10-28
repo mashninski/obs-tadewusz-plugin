@@ -81,6 +81,39 @@ export interface IntroConfig {
   donations: boolean;
 }
 
+export interface OutroConfig {
+  version: 1;
+  text: string;
+  ownLinks: boolean;
+  linksTitle: string;
+  links: IntroLink[];
+  raidCountdown: number;
+}
+
+export interface RaidChannel {
+  id: string;
+  login: string;
+  name: string;
+  avatar: string;
+  game: string;
+  title: string;
+  viewers: number;
+  mature: boolean;
+  thumbnail: string;
+}
+
+export interface RaidState {
+  access: 'twitch_connect_required' | 'raid_scopes' | null;
+  list: { fetchedAt: number | null; channels: RaidChannel[]; error: string | null; loading: boolean };
+  current: {
+    phase: 'starting' | 'pending' | 'unconfirmed' | 'done' | 'cancelled' | 'failed';
+    target: RaidChannel; startedAt: number | null; deadline: number | null; error: string | null; viewers: number | null;
+  } | null;
+  serverNow: number;
+  confirmMs: number;
+  outroOnAir: boolean | null;
+}
+
 export type SeasonTheme = 'halloween' | 'winter' | 'autumn' | 'spring' | 'custom';
 export type SeasonMotion = 'auto' | 'float' | 'fall' | 'tumble';
 
@@ -144,6 +177,8 @@ export interface CoreState {
   obs: { connected: boolean; streaming: boolean; error: string | null };
   steam: { catalog: string; library: string };
   backups: { at: string | null; daily: string | null; error: string | null; location: string | null; external: string };
+  outro: { config: OutroConfig };
+  raid: RaidState;
   intro: { config: IntroConfig; clips: number; byViewers: number; fetchedAt: number | null; fetching: boolean; error: string | null };
   season: { config: SeasonConfig; images: Record<SeasonTheme, string[]>; maxImages: number; maxBytes: number };
   history: { id: number; at: string; event: string }[];
@@ -276,6 +311,22 @@ const ERRORS: Record<string, string> = {
   season_image_type: 'Толькі PNG, WebP або SVG',
   season_image_limit: 'У тэме ўжо 20 карцінак · Выдаліце лішнія',
   season_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Сезон» іншага тыпу · Перайменуйце яе',
+  outro_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Аўтра» іншага тыпу · Перайменуйце яе',
+  outro_text: 'Надпіс: ад 1 да 80 знакаў',
+  outro_links_title: 'Загаловак спасылак: да 60 знакаў',
+  outro_options: 'Праверце налады аўтра',
+  outro_raid_countdown: 'Адлік да Raid Now: ад 3 да 60 секунд',
+  outro_links: 'Спасылак — не больш за 8',
+  outro_link: 'Праверце спасылку: адрас без прабелаў да 200 знакаў, подпіс да 60',
+  raid_scopes: 'Патрэбны паўторны ўваход у Twitch · Новыя правы для рэйду',
+  raid_target: 'Канала няма ў спісе · Абнавіце спіс',
+  raid_in_progress: 'Рэйд ужо ідзе · Адмяніце яго або дачакайцеся',
+  raid_not_pending: 'Адмяняць няма чаго · Рэйд ужо адбыўся або акно зачынена ў Twitch',
+  raid_refused: 'Twitch не дазволіў рэйд · Канал не прымае рэйды ад вас або ў рэйдзе зашмат гледачоў',
+  raid_channel_missing: 'Twitch не знайшоў канал · Абнавіце спіс',
+  raid_conflict: 'Рэйд ужо ідзе ў Twitch · Адмяніце яго ў чаце або тут',
+  raid_rate_limit: 'Twitch: не больш за 10 рэйдаў за 10 хвілін · Паспрабуйце пазней',
+  raid_unconfirmed: 'Twitch не пацвердзіў рэйд · Праверце чат',
   intro_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Інтро» іншага тыпу · Перайменуйце яе',
   intro_countdown: 'Адлік: ад 10 секунд да 6 гадзін',
   intro_finish_text: 'Надпіс на нулі: ад 1 да 80 знакаў',

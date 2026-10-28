@@ -602,3 +602,42 @@ input.invalid { border-color: var(--danger) !important; }
 .season-images li { position: relative; aspect-ratio: 1; border-radius: 6px; background: repeating-conic-gradient(#2a2a2a 0 25%, #222 0 50%) 0 0 / 12px 12px; display: grid; place-items: center; }
 .season-images img { max-width: 85%; max-height: 85%; object-fit: contain; }
 .season-images .icon-btn { position: absolute; top: 2px; right: 2px; }
+
+/* ---------- Інтро / Аўтра ---------- */
+
+.segmented { display: flex; gap: 2px; margin-bottom: 10px; padding: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.segmented button { flex: 1; height: 24px; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); cursor: pointer; }
+.segmented button:hover { color: var(--text); }
+.segmented button.active { background: var(--surface-3); color: var(--text); }
+
+.raid-search { width: 100%; height: var(--control); padding: 0 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.raid-list { max-height: 320px; overflow-y: auto; margin-top: 8px; border-top: 1px solid var(--line); }
+.raid-list > li { border-bottom: 1px solid var(--line); }
+.raid-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 4px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.raid-row:hover { background: var(--surface-2); }
+.raid-row.selected { background: var(--surface-3); box-shadow: inset 2px 0 0 var(--accent); }
+.raid-row img, .raid-row .raid-noavatar { flex: none; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--surface-3); }
+.raid-row-name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.raid-row-meta, .raid-row-title { color: var(--muted); font-size: 11.5px; }
+.raid-row-title { color: var(--faint); }
+.raid-viewers { flex: none; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+.raid-target { display: flex; align-items: center; gap: 10px; }
+.raid-target img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none; }
+.raid-count { font: 600 34px/1 Consolas, monospace; font-variant-numeric: tabular-nums; text-align: center; margin: 6px 0 2px; }
+.raid-alert {
+  margin: 8px 0 2px;
+  padding: 14px 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  animation: raid-pulse 1.2s ease-in-out infinite;
+}
+.raid-alert small { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 500; opacity: 0.8; }
+.raid-alert.bad { background: var(--danger); color: #1a0508; animation: none; }
+.raid-alert.calm { background: var(--surface-3); color: var(--text); font-size: 14px; animation: none; }
+@keyframes raid-pulse { 50% { box-shadow: 0 0 0 4px rgba(30, 215, 96, 0.25); } }

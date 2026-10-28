@@ -1,8 +1,11 @@
-// Сцэна «Інтро» ў OBS: адна крыніца-браўзер на старонку інтро праграмы (у кадры — 1920×1080).
+// Сцэны «Інтро» і «Аўтра» ў OBS: адна крыніца-браўзер на старонку інтро праграмы (у кадры — 1920×1080).
+// Аўтра — тая ж старонка ў рэжыме `?mode=outro` (кліпы, спасылкі; замест адліку — надпіс і рэйд).
 // Ідэмпатэнтна: калі сцэна і крыніца ўжо ёсць, яны абнаўляюцца, а не дублююцца. Налады самой старонкі
 // (адлік, спасылкі, паўза паміж кліпамі) сюды не трапляюць — оверлей бярэ іх з праграмы сам.
 export const INTRO_SCENE = 'Інтро';
 export const INTRO_INPUT = 'Tadewusz · Інтро';
+export const OUTRO_SCENE = 'Аўтра';
+export const OUTRO_INPUT = 'Tadewusz · Аўтра';
 /**
  * Старонка вышэйшая за кадр: пад 1080 — месца «за кадрам», дзе плэер Twitch стартуе нябачным для гледачоў
  * (значок ▶ і старт праходзяць там). OBS абразае гэтыя ніжнія 480 px.
@@ -21,7 +24,15 @@ export const introBrowserSettings = url => ({
 });
 
 /** @returns {Promise<{ sceneCreated: boolean, inputCreated: boolean, duplicatesRemoved: number }>} */
-export async function ensureIntroScene(obs, { url }) {
+export function ensureIntroScene(obs, { url }) {
+  return ensurePageScene(obs, { url, scene: INTRO_SCENE, input: INTRO_INPUT, nameError: 'intro_source_name' });
+}
+
+export function ensureOutroScene(obs, { url }) {
+  return ensurePageScene(obs, { url, scene: OUTRO_SCENE, input: OUTRO_INPUT, nameError: 'outro_source_name' });
+}
+
+async function ensurePageScene(obs, { url, scene: INTRO_SCENE, input: INTRO_INPUT, nameError }) {
   if (!obs.state.connected) throw new Error('obs_required');
 
   const { scenes } = await obs.request('GetSceneList');
@@ -31,7 +42,7 @@ export async function ensureIntroScene(obs, { url }) {
   const settings = introBrowserSettings(url);
   const { inputs } = await obs.request('GetInputList');
   const existing = inputs.find(i => i.inputName === INTRO_INPUT);
-  if (existing && existing.inputKind !== 'browser_source') throw new Error('intro_source_name');
+  if (existing && existing.inputKind !== 'browser_source') throw new Error(nameError);
   if (existing) await obs.request('SetInputSettings', { inputName: INTRO_INPUT, inputSettings: settings, overlay: true });
   else await obs.request('CreateInput', { sceneName: INTRO_SCENE, inputName: INTRO_INPUT, inputKind: 'browser_source', inputSettings: settings, sceneItemEnabled: true });
 
@@ -53,4 +64,10 @@ export async function ensureIntroScene(obs, { url }) {
   });
   await obs.request('SetSceneItemEnabled', { sceneName: INTRO_SCENE, sceneItemId, sceneItemEnabled: true });
   return { sceneCreated, inputCreated: !existing, duplicatesRemoved: Math.max(0, ours.length - 1) };
+}
+
+/** Ці сцэна «Аўтра» зараз у праграме (у эфіры). `null` — OBS не адказаў. */
+export async function outroOnAir(obs) {
+  if (!obs.state.connected) return null;
+  try { return (await obs.request('GetCurrentProgramScene')).currentProgramSceneName === OUTRO_SCENE; } catch { return null; }
 }

@@ -1,6 +1,9 @@
 // Twitch: уваход па кодзе (Device Code Flow, прыкладанне тыпу Public), токены і запыты да Helix.
 // Адзін уваход на ўсю праграму: галасаванне, бягучы радок і музыка карыстаюцца адным токенам.
-export const TWITCH_SCOPES = ['channel:manage:redemptions', 'user:write:chat'];
+// Рэйд (аўтра) — дадатковыя правы: без іх праграма працуе, а док просіць увайсці зноў.
+export const REQUIRED_SCOPES = ['channel:manage:redemptions', 'user:write:chat'];
+export const RAID_SCOPES = ['channel:manage:raids', 'user:read:follows'];
+export const TWITCH_SCOPES = [...REQUIRED_SCOPES, ...RAID_SCOPES];
 const ID = 'https://id.twitch.tv/oauth2';
 const HELIX = 'https://api.twitch.tv/helix';
 const VALIDATE_EVERY_MS = 3_600_000;
@@ -61,6 +64,9 @@ export class TwitchClient {
     if (!this.identity) throw new Error('twitch_connect_required');
     return `${this.clientId()}:${this.identity.userId}`;
   }
+
+  /** Правы для рэйду, якіх няма ў бягучым уваходзе (да ўваходу — усе). */
+  missingScopes(scopes = RAID_SCOPES) { return scopes.filter(s => !this.identity?.scopes?.includes(s)); }
 
   get connected() { return this.status.state === 'connected' && !!this.identity; }
 
@@ -125,8 +131,8 @@ export class TwitchClient {
     const result = await send(this.fetch, `${ID}/validate`, { headers: { Authorization: `OAuth ${accessToken}` } });
     if (!result.ok) throw failure(result);
     const v = result.body;
-    if (v?.client_id !== this.clientId() || !v.user_id || TWITCH_SCOPES.some(s => !v.scopes?.includes(s))) throw new Error('oauth_identity');
-    this.identity = { userId: v.user_id, login: v.login };
+    if (v?.client_id !== this.clientId() || !v.user_id || REQUIRED_SCOPES.some(s => !v.scopes?.includes(s))) throw new Error('oauth_identity');
+    this.identity = { userId: v.user_id, login: v.login, scopes: Array.isArray(v.scopes) ? v.scopes.map(String) : [] };
     this.validatedAt = this.now();
     return this.identity;
   }
@@ -263,5 +269,46 @@ export class TwitchClient {
     const id = this.identity.userId;
     const data = await this.api('chat/messages', { method: 'POST', body: { broadcaster_id: id, sender_id: id, message } });
     if (data?.data?.[0]?.is_sent !== true) throw new Error('chat_not_sent');
+  }
+
+  // --- Рэйд ---
+
+  /** Каналы ў эфіры, на якія падпісаны стрымер (Twitch аддае іх па колькасці гледачоў). */
+  async followedStreams() {
+    const byId = new Map();
+    let cursor = '';
+    for (let page = 0; page < 50; page++) {
+      const data = await this.api('streams/followed', { query: { user_id: this.identity.userId, first: '100', ...(cursor ? { after: cursor } : {}) } });
+      if (!Array.isArray(data?.data)) throw new Error('remote_format');
+      // Пакуль ідзе пагінацыя, гледачы прыходзяць і сыходзяць — канал можа трапіць на дзве старонкі.
+      for (const stream of data.data) if (stream?.user_id && !byId.has(stream.user_id)) byId.set(stream.user_id, stream);
+      cursor = data.pagination?.cursor ?? '';
+      if (!cursor) break;
+    }
+    return [...byId.values()];
+  }
+
+  /** Профілі (аватар) — па 100 ID за запыт. */
+  async users(ids) {
+    const found = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const search = new URLSearchParams(ids.slice(i, i + 100).map(id => ['id', id]));
+      const result = await this.raw('GET', `users?${search}`);
+      if (!result.ok) throw failure(result);
+      found.push(...(result.body?.data ?? []));
+    }
+    return found;
+  }
+
+  /** Адкрыць акно рэйду. Сам рэйд адбываецца, калі стрымер націсне Raid Now у Twitch або праз ~90 с. */
+  async startRaid(toId) {
+    const data = await this.api('raids', { method: 'POST', query: { from_broadcaster_id: this.identity.userId, to_broadcaster_id: toId } });
+    if (!data?.data?.[0]) throw new Error('raid_unconfirmed');
+    return data.data[0];
+  }
+
+  /** Адмяніць рэйд, пакуль ён не адбыўся. 404 — рэйду ўжо (або яшчэ) няма. */
+  async cancelRaid() {
+    await this.api('raids', { method: 'DELETE', query: { broadcaster_id: this.identity.userId } });
   }
 }

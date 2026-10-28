@@ -8,6 +8,8 @@ export const SUBSCRIPTIONS = [
   'channel.channel_points_custom_reward.update',
   'channel.channel_points_custom_reward.remove',
 ];
+/** Рэйд з нашага канала (факт рэйду для дока). Правоў не патрабуе; калі падпіска не ўдалася, астатняе працуе. */
+export const RAID_SUBSCRIPTION = 'channel.raid';
 
 export class EventSub {
   constructor({ twitch, Socket = globalThis.WebSocket, log = () => {}, url = URL_DEFAULT, schedule = setTimeout, unschedule = clearTimeout }) {
@@ -78,7 +80,9 @@ export class EventSub {
         }
       } else if (type === 'notification') {
         const subscription = packet.payload?.subscription;
-        if (subscription?.condition?.broadcaster_user_id !== this.twitch.identity?.userId) return;
+        const me = this.twitch.identity?.userId;
+        const condition = subscription?.condition ?? {};
+        if (condition.broadcaster_user_id !== me && condition.from_broadcaster_user_id !== me) return;
         for (const listener of this.eventListeners) listener(subscription.type, packet.payload.event, id);
       } else if (type === 'session_reconnect') {
         if (!this.replacement) this.connect(packet.payload.session.reconnect_url, socket);
@@ -113,6 +117,11 @@ export class EventSub {
           body: { type, version: '1', condition: { broadcaster_user_id: this.twitch.identity.userId }, transport: { method: 'websocket', session_id: sessionId } },
         }).catch(error => { if (error.message !== 'remote_409') throw error; });
       }
+      if (socket !== this.socket) return;
+      await this.twitch.api('eventsub/subscriptions', {
+        method: 'POST',
+        body: { type: RAID_SUBSCRIPTION, version: '1', condition: { from_broadcaster_user_id: this.twitch.identity.userId }, transport: { method: 'websocket', session_id: sessionId } },
+      }).catch(error => { if (error.message !== 'remote_409') this.log('warn', 'eventsub.raid_subscribe_failed', error.message); });
       if (socket !== this.socket) return;
       this.attempt = 0;
       this.setState('connected');

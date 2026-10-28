@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createApp } from '../core/app.js';
 import { fetchAllClips, Intro, introDefaults, validateIntro } from '../core/intro/intro.js';
-import { ensureIntroScene, INTRO_INPUT, INTRO_SCENE } from '../core/obs/intro-scene.js';
+import { ensureIntroScene, ensureOutroScene, INTRO_INPUT, INTRO_SCENE, OUTRO_INPUT, OUTRO_SCENE, outroOnAir } from '../core/obs/intro-scene.js';
 import { MemoryVault } from '../core/storage/vault.js';
 import { ClipDeck } from '../web/src/intro/deck.js';
 import { clock, store, tempDir } from './helpers.js';
@@ -241,6 +241,26 @@ test('сцэна інтро: OBS не падключаны або назва з�
   const obs = fakeObs();
   obs.inputs.set(INTRO_INPUT, { kind: 'text_gdiplus', settings: {} });
   await assert.rejects(ensureIntroScene(obs, { url: 'x' }), /intro_source_name/);
+});
+
+test('сцэна аўтра: асобная сцэна і крыніца побач з інтро, тая ж старонка ў рэжыме аўтра', async () => {
+  const obs = fakeObs();
+  await ensureIntroScene(obs, { url: 'file:///start.html?page=intro&port=1' });
+  const first = await ensureOutroScene(obs, { url: 'file:///start.html?page=intro&port=1&mode=outro' });
+  assert.deepEqual(first, { sceneCreated: true, inputCreated: true, duplicatesRemoved: 0 });
+  assert.equal(obs.inputs.size, 2);
+  assert.equal(obs.scenes.get(OUTRO_SCENE).length, 1);
+  assert.equal(obs.inputs.get(OUTRO_INPUT).settings.url, 'file:///start.html?page=intro&port=1&mode=outro');
+  assert.equal(obs.inputs.get(INTRO_INPUT).settings.url, 'file:///start.html?page=intro&port=1', 'інтро не зачэплена');
+  assert.equal(obs.transform.cropBottom, 480);
+  const second = await ensureOutroScene(obs, { url: 'x' });
+  assert.deepEqual(second, { sceneCreated: false, inputCreated: false, duplicatesRemoved: 0 });
+  obs.inputs.set(OUTRO_INPUT, { kind: 'text_gdiplus', settings: {} });
+  await assert.rejects(ensureOutroScene(obs, { url: 'x' }), /outro_source_name/);
+  // Ці «Аўтра» ў эфіры — для папярэджання пры рэйдзе.
+  assert.equal(await outroOnAir({ state: { connected: false } }), null);
+  assert.equal(await outroOnAir({ state: { connected: true }, request: async () => ({ currentProgramSceneName: OUTRO_SCENE }) }), true);
+  assert.equal(await outroOnAir({ state: { connected: true }, request: async () => ({ currentProgramSceneName: INTRO_SCENE }) }), false);
 });
 
 // ---------- API ----------

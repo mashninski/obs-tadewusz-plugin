@@ -22,7 +22,7 @@ export function ConnectionsSection({ state, music }: { state: CoreState; music: 
 }
 
 /** Уваход па кодзе (Device Code Flow): док паказвае код і пытае ядро, ці пацвердзіў стрымер уваход. */
-function useDeviceFlow<T>(pollPath: string, done: (result: T) => boolean, success: string) {
+export function useDeviceFlow<T>(pollPath: string, done: (result: T) => boolean, success: string) {
   const [flow, setFlow] = useState<Flow | null>(null);
   useEffect(() => {
     if (!flow) return;
@@ -48,7 +48,7 @@ function useDeviceFlow<T>(pollPath: string, done: (result: T) => boolean, succes
   return { flow, start, cancel: () => setFlow(null) };
 }
 
-function DeviceCode({ flow }: { flow: Flow }) {
+export function DeviceCode({ flow }: { flow: Flow }) {
   return (
     <div class="inline">
       <div class="grow">
