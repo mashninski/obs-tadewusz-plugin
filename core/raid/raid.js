@@ -102,16 +102,18 @@ export class Raid {
   async cancel() {
     this.requireAccess();
     if (!this.current || !['pending', 'unconfirmed'].includes(this.current.phase)) throw new Error('raid_not_pending');
+    let gone = false;
     try {
       await this.twitch.cancelRaid();
     } catch (error) {
-      // 404: у Twitch рэйду ўжо няма — ён адбыўся або акно зачынілі ў чаце.
-      if (error.message === 'remote_404') throw new Error('raid_not_pending');
-      throw raidError(error);
+      if (error.message !== 'remote_404') throw raidError(error);
+      // 404: у Twitch рэйду ўжо няма — яго адмянілі ў чаце (падзеі на гэта Twitch не дае).
+      // Калі б рэйд адбыўся, channel.raid ужо перавёў бы стан у «адбыўся». Стан закрываецца — можна пачаць новы.
+      gone = true;
     }
     this.current = { ...this.current, phase: 'cancelled' };
-    this.log('info', 'raid.cancelled');
-    return this.snapshot();
+    this.log('info', gone ? 'raid.gone' : 'raid.cancelled');
+    return { ...this.snapshot(), gone };
   }
 
   /** Закрыць вынік (рэйд адбыўся, адменены або не пацверджаны) — экран вяртаецца да кліпаў. */

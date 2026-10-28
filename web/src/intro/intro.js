@@ -1,6 +1,6 @@
 // Оверлей інтро: спасылкі (з QR), кліпы канала афіцыйным плэерам Twitch, адлік да пачатку стрыму.
-// `?mode=outro` — аўтра: замест адліку вялікі надпіс, а калі пачаўся рэйд — картка канала на месцы кліпаў
-// і адлік да моманту, калі ў Twitch можна націснуць Raid Now.
+// `?mode=outro` — аўтра: без кліпаў (рашэнне аўтара 2026-10-28) і без адліку — вялікі надпіс; калі пачаўся рэйд —
+// справа зверху картка канала і адлік да моманту, калі ў Twitch можна націснуць Raid Now.
 // Налады бярэ з праграмы кожныя 2 с — змены з дока відаць адразу, без перастварэння сцэны.
 // Крыніца ў OBS выключаецца, калі сцэна не бачная, і перазагружаецца пры актывацыі: адлік пачынаецца нанова,
 // спіс кліпаў абнаўляецца. Пакуль сцэна ў эфіры — спіс абнаўляецца раз у 5 хвілін, калода працягваецца.
@@ -50,7 +50,7 @@ const SETTLE_COLD_MS = 5500;
 const LOAD_TIMEOUT_MS = 10_000;
 const DECK_KEY = 'tadewusz.intro.deck';
 const MODE = new URLSearchParams(location.search).get('mode') === 'outro' ? 'outro' : 'intro';
-const IDLE_TEXT = MODE === 'outro' ? 'Дзякуй, што былі разам' : 'Хутка пачынаем';
+const IDLE_TEXT = 'Хутка пачынаем';
 
 const $ = (id) => document.getElementById(id);
 const state = { config: null, restartAt: null, clipsVersion: undefined, countdownFrom: 0, countdownSeconds: 0, raid: null, clockOffset: 0 };
@@ -396,7 +396,7 @@ async function poll() {
     const next = await get(`/${MODE}/state`);
     if (MODE === 'outro') applyOutro(next);
     else applyConfig(next.config, next.restartAt);
-    if (next.clips.fetchedAt !== state.clipsVersion) {
+    if (MODE === 'intro' && next.clips.fetchedAt !== state.clipsVersion) {
       state.clipsVersion = next.clips.fetchedAt;
       await loadClips();
     }
@@ -411,7 +411,8 @@ const activate = () => fetch('/intro/activate', { cache: 'no-store' }).catch(() 
 // Актывацыя сцэны: адлік і спіс кліпаў — нанова (калі OBS не перазагрузіў старонку сам).
 addEventListener('obsSourceActiveChanged', (event) => {
   if (!event.detail?.active || !state.config) return;
-  if (MODE === 'intro') startCountdown(state.config.countdown);
+  if (MODE !== 'intro') return;
+  startCountdown(state.config.countdown);
   void activate();
 });
 
@@ -463,6 +464,7 @@ function showRaid(raid) {
   $('raidTitle').textContent = t.title;
   $('raidViewers').textContent = viewersText(t.viewers);
   $('raidHeadingName').textContent = t.name;
+  document.documentElement.classList.add('raiding');
   const card = $('raidCard');
   card.hidden = false;
   card.classList.remove('leaving');
@@ -480,8 +482,7 @@ function hideRaid() {
   const card = $('raidCard');
   card.classList.add('leaving');
   setTimeout(() => { if (!state.raid) { card.hidden = true; card.classList.remove('leaving'); } }, 500);
-  if (deck.size) playNext();
-  else showIdle(IDLE_TEXT);
+  document.documentElement.classList.remove('raiding');
 }
 
 /** Адлік рэйду: секунды буйна, пад імі паласа, што плаўна змяншаецца. На нулі трымаецца 0. */
@@ -505,6 +506,9 @@ function tickRaid() {
 }
 
 showIdle();
-void activate();
-setInterval(activate, REFRESH_MS);
+// Кліпы (і абнаўленне іх спіса) — толькі ў інтро.
+if (MODE === 'intro') {
+  void activate();
+  setInterval(activate, REFRESH_MS);
+}
 void poll();

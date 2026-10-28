@@ -321,7 +321,7 @@ const ERRORS: Record<string, string> = {
   raid_scopes: 'Патрэбны паўторны ўваход у Twitch · Новыя правы для рэйду',
   raid_target: 'Канала няма ў спісе · Абнавіце спіс',
   raid_in_progress: 'Рэйд ужо ідзе · Адмяніце яго або дачакайцеся',
-  raid_not_pending: 'Адмяняць няма чаго · Рэйд ужо адбыўся або акно зачынена ў Twitch',
+  raid_not_pending: 'Рэйд не ідзе · Адмяняць няма чаго',
   raid_refused: 'Twitch не дазволіў рэйд · Канал не прымае рэйды ад вас або ў рэйдзе зашмат гледачоў',
   raid_channel_missing: 'Twitch не знайшоў канал · Абнавіце спіс',
   raid_conflict: 'Рэйд ужо ідзе ў Twitch · Адмяніце яго ў чаце або тут',

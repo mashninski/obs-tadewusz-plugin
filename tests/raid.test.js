@@ -139,9 +139,17 @@ test('рэйд: пачатак, дэдлайн ад адказу Twitch, адм�
   now.advance(60_000);
   const second = await raid.start('u1');
   assert.equal(second.current.deadline - second.current.startedAt, 25_000);
-  // Twitch ужо не мае рэйду (адбыўся або зачынены ў чаце) — зразумелая памылка.
+  // Рэйд адменены ў чаце Twitch (падзеі на гэта няма): «Адмяніць» атрымлівае 404 — стан закрываецца,
+  // і можна пачаць новы рэйд (раней док заставаўся ў «рэйд ідзе», водгук аўтара 2026-10-28).
   server.raid = null;
-  await assert.rejects(raid.cancel(), /raid_not_pending/);
+  const gone = await raid.cancel();
+  assert.equal(gone.gone, true);
+  assert.equal(gone.current.phase, 'cancelled');
+  assert.equal(raid.view(), null);
+  await raid.start('u2');
+  assert.equal(raid.current.phase, 'pending');
+  await raid.cancel();
+  await assert.rejects(raid.cancel(), /raid_not_pending/, 'нічога не ідзе — адмяняць няма чаго');
 });
 
 test('рэйд: channel.raid → «адбыўся»; без падзеі 100 с → «не пацверджаны»', async () => {
@@ -289,6 +297,7 @@ test('API аўтра: спасылкі з інтро па змаўчанні, с
   assert.equal(outro.config.text, 'Хутка сустрэнемся!');
   assert.deepEqual(outro.config.links, introLinks, 'па змаўчанні — спасылкі інтро');
   assert.equal(outro.raid, null);
+  assert.equal(outro.clips, undefined, 'у аўтра кліпаў няма');
   assert.ok(Math.abs(outro.serverNow - Date.now()) < 5000);
 
   const own = [{ id: 'b1', url: 'mashninski.com', label: '', qr: false }];

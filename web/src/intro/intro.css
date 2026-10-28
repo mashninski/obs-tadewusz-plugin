@@ -366,6 +366,12 @@ html, body {
 
 [data-mode='outro'] .countdown-label,
 [data-mode='outro'] #countdownTime { display: none; }
+/* Аўтра без кліпаў: рамка і подпіс не відаць; месца справа зверху — для карткі рэйду (свячэнне — толькі з ёй). */
+[data-mode='outro'] .clip-screen,
+[data-mode='outro'] .clip-caption { visibility: hidden; }
+[data-mode='outro'] .clip-glow { opacity: 0; transition: opacity 0.6s ease; }
+[data-mode='outro'].raiding .clip-glow { opacity: 1; }
+[data-mode='outro'] #outroText { font-size: 112px; }
 
 /* Картка рэйду — на месцы кліпа, такога ж памеру; кадр стрыму канала фонам, імя і катэгорыя ўнізе. */
 .raid-card {

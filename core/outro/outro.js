@@ -1,4 +1,4 @@
-// Аўтра — сцэна ў канцы стрыму: вялікі надпіс, спасылкі з QR, кліпы канала або картка рэйду.
+// Аўтра — сцэна ў канцы стрыму: вялікі надпіс, спасылкі з QR і картка рэйду (без кліпаў — рашэнне аўтара 2026-10-28).
 // Налады захоўваюцца асобна ад інтро (`outro.settings`); спасылкі па змаўчанні — тыя ж, што ў інтро.
 import { plainText, validateLinks } from '../intro/intro.js';
 
@@ -38,14 +38,12 @@ export class Outro {
     return value;
   }
 
-  /** Для старонкі: надпіс, спасылкі (свае або з інтро), паўза кліпаў з інтро, рэйд і час ядра для адліку. */
+  /** Для старонкі: надпіс, спасылкі (свае або з інтро), рэйд і час ядра для адліку. */
   overlayState() {
-    const config = this.config(), intro = this.intro.config();
-    const links = config.ownLinks ? config : intro;
-    const { fetchedAt, clips } = this.intro.clips();
+    const config = this.config();
+    const links = config.ownLinks ? config : this.intro.config();
     return {
-      config: { text: config.text, linksTitle: links.linksTitle, links: links.links, clipPause: intro.clipPause },
-      clips: { fetchedAt, count: clips.length },
+      config: { text: config.text, linksTitle: links.linksTitle, links: links.links },
       raid: this.raid.view(), serverNow: this.now(),
     };
   }

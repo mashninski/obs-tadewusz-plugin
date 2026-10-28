@@ -1,4 +1,4 @@
-// «Інтро / Аўтра» → «Аўтра»: сцэна ў канцы стрыму (надпіс, спасылкі, кліпы) і рэйд.
+// «Інтро / Аўтра» → «Аўтра»: сцэна ў канцы стрыму (надпіс, спасылкі) і рэйд.
 // Twitch не дазваляе націснуць Raid Now праз API: праграма адкрывае акно рэйду, адлічвае час да моманту,
 // калі кнопка ў чаце становіцца актыўнай, і нагадвае стрымеру націснуць яе (гук — толькі ў доку).
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -33,7 +33,7 @@ export function OutroTab({ state }: { state: CoreState }) {
 
       <RaidSection raid={raid} />
 
-      <Card title="Экран" help={'Вялікі надпіс справа, спасылкі з QR злева, кліпы канала справа зверху\n\nПадчас рэйду на месцы кліпаў — картка канала і адлік'}>
+      <Card title="Экран" help={'Вялікі надпіс справа, спасылкі з QR злева\n\nПадчас рэйду справа — картка канала і адлік'}>
         <div class="stack">
           <TextField label="Надпіс" value={draft.text} maxLength={80} onChange={(text) => set({ text }, !!text.trim())} />
           <NumberField label="Адлік да Raid Now" suffix="с" value={draft.raidCountdown} min={3} max={60}
@@ -194,7 +194,10 @@ function RaidProgress({ raid }: { raid: RaidState }) {
     if (atZero && beeped.current !== current.startedAt) { beeped.current = current.startedAt; beep(); }
   }, [atZero, current.startedAt]);
 
-  const cancel = () => run(() => api('/api/raid/cancel'), 'Рэйд адменены');
+  const cancel = async () => {
+    const result = await run(() => api<{ gone?: boolean }>('/api/raid/cancel'), '');
+    if (result) toast(result.gone ? 'У Twitch рэйду ўжо няма · Можна пачаць новы' : 'Рэйд адменены');
+  };
   const close = () => run(() => api('/api/raid/reset'), '');
 
   return (
