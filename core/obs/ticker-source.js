@@ -13,13 +13,25 @@ function fits(t, width, height) {
   return x >= -1 && y >= -1 && x + t.width <= width + 1 && y + t.height <= height + 1;
 }
 
-/** Гук старонкі радка (голас паведамленняў) — у мікшар OBS: тады ён ідзе ў эфір і рэгулюецца як любая крыніца. */
-export async function routeTickerAudio(obs, inputName) {
+/**
+ * Гук старонкі радка (голас паведамленняў) — у мікшар OBS: тады ён ідзе ў эфір і рэгулюецца як любая крыніца.
+ * `monitor` — стрымер чуе голас і сам (маніторынг OBS «Маніторынг і вывад»); без яго гук ідзе толькі ў эфір і запіс.
+ */
+export async function routeTickerAudio(obs, inputName, { monitor = false } = {}) {
   if (!obs.state.connected) throw new Error('obs_disconnected');
+  let changed = false;
   const { inputSettings } = await obs.request('GetInputSettings', { inputName });
-  if (inputSettings.reroute_audio === true) return { changed: false };
-  await obs.request('SetInputSettings', { inputName, inputSettings: { reroute_audio: true }, overlay: true });
-  return { changed: true };
+  if (inputSettings.reroute_audio !== true) {
+    await obs.request('SetInputSettings', { inputName, inputSettings: { reroute_audio: true }, overlay: true });
+    changed = true;
+  }
+  const { monitorType } = await obs.request('GetInputAudioMonitorType', { inputName });
+  const wanted = monitor ? 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT' : monitorType === 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT' ? 'OBS_MONITORING_TYPE_NONE' : monitorType;
+  if (wanted !== monitorType) {
+    await obs.request('SetInputAudioMonitorType', { inputName, monitorType: wanted });
+    changed = true;
+  }
+  return { changed };
 }
 
 /** @returns {Promise<{source:boolean, name?:string}>} */

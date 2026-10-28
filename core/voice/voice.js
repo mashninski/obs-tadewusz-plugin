@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VOICE_PERSONAS } from '../../shared/voice-personas.js';
 
-export const voiceDefaults = { version: 1, enabled: false, path: 'D:\\ai models\\OmniVoice', volume: 0.9, device: 'cuda', steps: 16, idle: 15 };
+export const voiceDefaults = { version: 1, enabled: false, path: 'D:\\ai models\\OmniVoice', volume: 0.9, device: 'cuda', steps: 16, idle: 15, monitor: true };
 
 const WORKER = fileURLToPath(new URL('./worker.py', import.meta.url));
 const SYNTH_TIMEOUT_MS = 120_000;
@@ -26,8 +26,8 @@ export function validateVoice(input) {
   if (c.version !== 1 || typeof c.enabled !== 'boolean' || typeof c.path !== 'string' || !c.path.trim() || c.path.length > 260
     || /[\p{Cc}"*?<>|]/u.test(c.path) || !Number.isFinite(c.volume) || c.volume < 0 || c.volume > 1
     || !['cpu', 'cuda'].includes(c.device) || ![16, 32].includes(c.steps)
-    || !Number.isInteger(c.idle) || c.idle < 0 || c.idle > 240) throw new Error('voice_settings');
-  return { version: 1, enabled: c.enabled, path: c.path.trim(), volume: c.volume, device: c.device, steps: c.steps, idle: c.idle };
+    || !Number.isInteger(c.idle) || c.idle < 0 || c.idle > 240 || typeof c.monitor !== 'boolean') throw new Error('voice_settings');
+  return { version: 1, enabled: c.enabled, path: c.path.trim(), volume: c.volume, device: c.device, steps: c.steps, idle: c.idle, monitor: c.monitor };
 }
 
 export class Voice {

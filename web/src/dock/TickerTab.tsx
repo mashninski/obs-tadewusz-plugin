@@ -2,7 +2,7 @@
 // Змены аб’яў захоўваюцца самі (праз імгненне пасля праўкі); пустая аб’ява жыве толькі ў доку, пакуль у ёй няма тэксту.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { boldParts, textLength, toggleBold } from '../../../shared/ticker-text.js';
-import { personaById, playVoice, VOICE_PERSONAS } from '../../../shared/voice-personas.js';
+import { personaById, playRendered, renderVoice, VOICE_PERSONAS } from '../../../shared/voice-personas.js';
 import { api, errorText, run, type Announcement, type CoreState, type TickerConfig, type VoiceConfig } from './core';
 import { Card, Hero, IconButton, moveItem, NumberField, Pill, Switch, TextField, time, toast, useSortable } from './ui';
 
@@ -154,7 +154,7 @@ function VoiceCard({ state }: { state: CoreState }) {
       await previewAudio.resume();
       const buffer = await previewAudio.decodeAudioData(await response.arrayBuffer());
       const persona = personaById(result.persona);
-      playVoice(previewAudio, buffer, persona ?? {}, { volume: draft.volume });
+      playRendered(previewAudio, await renderVoice(buffer, persona ?? {}), { volume: draft.volume });
       setLast(persona?.name ?? null);
     } catch (error) {
       toast(errorText(error), true);
@@ -187,6 +187,8 @@ function VoiceCard({ state }: { state: CoreState }) {
           </label>
           <NumberField label="Выгружаць пасля прастою" suffix="хв" value={draft.idle} min={0} max={240} onChange={(n) => update({ idle: Math.max(0, Math.min(240, Math.round(n))) })} />
         </div>
+        <Switch label="Чуць голас самому (маніторынг OBS)" checked={draft.monitor} onChange={(monitor) => update({ monitor })} />
+        <p class="hint">Голас ідзе праз крыніцу радка ў эфір і запіс. З маніторынгам ён гучыць і ў вашых навушніках — як у «Пашыраных уласцівасцях аўдыя» → «Маніторынг і вывад». Калі ў эфіры голас задвойваецца, выключыце.</p>
         <p class="hint">0 хв — мадэль не выгружаецца. Пасля выгрузкі першае паведамленне чакае загрузку мадэлі.</p>
         <div class="actions">
           <button class="btn" disabled={busy || (voice.state !== 'ready' && voice.state !== 'sleeping')} onClick={listen}>{busy ? 'Агучваю…' : 'Праслухаць выпадковы голас'}</button>

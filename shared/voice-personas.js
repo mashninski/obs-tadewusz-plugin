@@ -10,31 +10,31 @@
 //     double [цэнты, мс] — другі голас побач («хор»); noise — узровень шуму і трэску.
 
 export const VOICE_PERSONAS = [
-  { id: 'news', name: 'Дыктар вячэрніх навін', instruct: 'male, middle-aged, low pitch', speed: 0.95, fx: { reverb: [0.6, 0.08] } },
+  { id: 'news', name: 'Дыктар вячэрніх навін', instruct: 'male, middle-aged, low pitch', speed: 0.95, fx: { reverb: [0.6, 0.05] } },
   { id: 'granny', name: 'Бабуля з лаўкі', instruct: 'female, elderly, high pitch', speed: 0.9, fx: {} },
-  { id: 'grandpa', name: 'Дзед-казачнік', instruct: 'male, elderly, low pitch', speed: 0.82, fx: { reverb: [1.2, 0.12] } },
-  { id: 'cellar', name: 'Шэпт з падвала', instruct: 'male, low pitch, whisper', speed: 0.9, fx: { filter: ['lowpass', 3000, 0.7], reverb: [2.5, 0.35] } },
-  { id: 'ghost', name: 'Прывід старога замка', instruct: 'female, high pitch, whisper', speed: 0.85, fx: { rate: 0.94, echo: [0.28, 0.45, 0.35], reverb: [3.5, 0.4] } },
-  { id: 'robot', name: 'Робат Тадэвуш', instruct: 'male, moderate pitch', speed: 1, fx: { filter: ['highpass', 200, 0.7], ring: [55, 0.85] } },
-  { id: 'booth', name: 'Званок з тэлефоннай будкі', instruct: 'female, young adult', speed: 1.05, fx: { filter: ['bandpass', 1200, 0.9], drive: 0.25 } },
-  { id: 'radio-truck', name: 'Рацыя кіроўцы фуры', instruct: 'male, middle-aged, low pitch', speed: 1.1, fx: { filter: ['bandpass', 1600, 1.4], drive: 0.6, noise: 0.02 } },
+  { id: 'grandpa', name: 'Дзед-казачнік', instruct: 'male, elderly, low pitch', speed: 0.82, fx: { reverb: [1.2, 0.08] } },
+  { id: 'cellar', name: 'Шэпт з падвала', instruct: 'male, low pitch, whisper', speed: 0.9, fx: { filter: ['lowpass', 3500, 0.7], reverb: [2, 0.2] } },
+  { id: 'ghost', name: 'Прывід старога замка', instruct: 'female, high pitch, whisper', speed: 0.85, fx: { rate: 0.94, echo: [0.28, 0.3, 0.22], reverb: [2.5, 0.22] } },
+  { id: 'robot', name: 'Робат Тадэвуш', instruct: 'male, moderate pitch', speed: 1, fx: { filter: ['highpass', 150, 0.7], ring: [55, 0.5] } },
+  { id: 'booth', name: 'Званок з тэлефоннай будкі', instruct: 'female, young adult', speed: 1.05, fx: { filter: ['bandpass', 1200, 0.7], drive: 0.1 } },
+  { id: 'radio-truck', name: 'Рацыя кіроўцы фуры', instruct: 'male, middle-aged, low pitch', speed: 1.1, fx: { filter: ['bandpass', 1600, 0.9], drive: 0.25, noise: 0.006 } },
   { id: 'chipmunk', name: 'Бурундук пасля кавы', instruct: 'child', speed: 1.2, fx: { rate: 1.38 } },
-  { id: 'giant', name: 'Велікан з-пад гары', instruct: 'male, very low pitch', speed: 0.9, fx: { rate: 0.8, reverb: [1.8, 0.25] } },
+  { id: 'giant', name: 'Велікан з-пад гары', instruct: 'male, very low pitch', speed: 0.9, fx: { rate: 0.8, reverb: [1.8, 0.15] } },
   { id: 'smartkid', name: 'Маленькі ўсёзнайка', instruct: 'child, high pitch', speed: 1.1, fx: {} },
   { id: 'teen', name: 'Падлетак, якому няёмка', instruct: 'male, teenager', speed: 1.2, fx: { filter: ['lowpass', 5000, 0.7] } },
-  { id: 'orator', name: 'Аратар на плошчы', instruct: 'male, middle-aged, low pitch', speed: 0.92, fx: { echo: [0.42, 0.3, 0.3], reverb: [2.2, 0.3] } },
-  { id: 'captain', name: 'Камандзір зоркалёта', instruct: 'male, middle-aged, low pitch', speed: 1, fx: { filter: ['bandpass', 1800, 0.7], double: [12, 18], noise: 0.01 } },
-  { id: 'alien', name: 'Госць з іншай планеты', instruct: 'female, very high pitch', speed: 1, fx: { ring: [420, 0.5], tremolo: [9, 0.4] } },
-  { id: 'underwater', name: 'Голас з-пад вады', instruct: 'male, moderate pitch', speed: 0.95, fx: { filter: ['lowpass', 450, 4], tremolo: [5, 0.5] } },
-  { id: 'radio-1930', name: 'Радыё трыццатых гадоў', instruct: 'male, middle-aged', speed: 1.05, fx: { filter: ['bandpass', 1500, 1.1], drive: 0.4, noise: 0.035 } },
-  { id: 'stadium', name: 'Дыктар на стадыёне', instruct: 'male, young adult, low pitch', speed: 1, fx: { echo: [0.38, 0.4, 0.4], reverb: [2.8, 0.25] } },
-  { id: 'troll', name: 'Пячорны троль', instruct: 'male, elderly, very low pitch', speed: 0.8, fx: { rate: 0.86, drive: 0.2, reverb: [3, 0.4] } },
+  { id: 'orator', name: 'Аратар на плошчы', instruct: 'male, middle-aged, low pitch', speed: 0.92, fx: { echo: [0.42, 0.25, 0.2], reverb: [2, 0.18] } },
+  { id: 'captain', name: 'Камандзір зоркалёта', instruct: 'male, middle-aged, low pitch', speed: 1, fx: { filter: ['bandpass', 1800, 0.6], double: [12, 18], noise: 0.003 } },
+  { id: 'alien', name: 'Госць з іншай планеты', instruct: 'female, very high pitch', speed: 1, fx: { ring: [420, 0.3], tremolo: [9, 0.25] } },
+  { id: 'underwater', name: 'Голас з-пад вады', instruct: 'male, moderate pitch', speed: 0.95, fx: { filter: ['lowpass', 700, 1.2], tremolo: [5, 0.3] } },
+  { id: 'radio-1930', name: 'Радыё трыццатых гадоў', instruct: 'male, middle-aged', speed: 1.05, fx: { filter: ['bandpass', 1500, 0.8], drive: 0.15, noise: 0.008 } },
+  { id: 'stadium', name: 'Дыктар на стадыёне', instruct: 'male, young adult, low pitch', speed: 1, fx: { echo: [0.38, 0.3, 0.25], reverb: [2.2, 0.15] } },
+  { id: 'troll', name: 'Пячорны троль', instruct: 'male, elderly, very low pitch', speed: 0.8, fx: { rate: 0.86, drive: 0.08, reverb: [2.2, 0.22] } },
   { id: 'mouse', name: 'Мыш з мультфільма', instruct: 'female, child, very high pitch', speed: 1.15, fx: { rate: 1.25 } },
   { id: 'sleepy', name: 'Той, хто не выспаўся', instruct: 'male, young adult, low pitch', speed: 0.72, fx: { rate: 0.95 } },
   { id: 'rapid', name: 'Скорагаворка', instruct: 'female, young adult, high pitch', speed: 1.5, fx: {} },
-  { id: 'machine', name: 'Аўтаадказчык', instruct: 'female, middle-aged, moderate pitch', speed: 0.95, fx: { filter: ['bandpass', 1400, 0.8], reverb: [0.4, 0.1] } },
-  { id: 'demon', name: 'Дэман з-за куліс', instruct: 'male, very low pitch', speed: 0.85, fx: { rate: 0.88, double: [-70, 25], drive: 0.35, reverb: [2.5, 0.3] } },
-  { id: 'twins', name: 'Хор блізнят', instruct: 'female, young adult', speed: 1, fx: { double: [18, 30], reverb: [1.5, 0.25] } },
+  { id: 'machine', name: 'Аўтаадказчык', instruct: 'female, middle-aged, moderate pitch', speed: 0.95, fx: { filter: ['bandpass', 1400, 0.6], reverb: [0.4, 0.06] } },
+  { id: 'demon', name: 'Дэман з-за куліс', instruct: 'male, very low pitch', speed: 0.85, fx: { rate: 0.88, double: [-70, 25], drive: 0.12, reverb: [2, 0.18] } },
+  { id: 'twins', name: 'Хор блізнят', instruct: 'female, young adult', speed: 1, fx: { double: [18, 30], reverb: [1.5, 0.15] } },
 ];
 
 export const personaById = id => VOICE_PERSONAS.find(p => p.id === id) ?? null;
@@ -88,7 +88,7 @@ function crackle(ctx, seconds, level) {
   const data = buffer.getChannelData(0), random = noiseSource(42);
   for (let i = 0; i < length; i++) {
     const hiss = random() * level * 0.5;
-    data[i] = random() > 0.9993 ? hiss + random() * level * 6 : hiss;
+    data[i] = random() > 0.9996 ? hiss + random() * level * 3 : hiss;
   }
   return buffer;
 }
@@ -199,4 +199,63 @@ export function playVoice(ctx, buffer, persona, { volume = 1, destination = ctx.
   const end = when + duration / 1000 + 0.1;
   for (const source of sources) { try { source.stop(end); } catch { /* ігнараваць */ } }
   return { duration, stop };
+}
+
+/** Мэтавая гучнасць маўлення (RMS гучных кавалкаў) і мяжа, вышэй за якую пікі мякка абмяжоўваюцца. */
+const TARGET_RMS = 0.1; // ≈ −20 dBFS
+const KNEE = 0.7;
+
+/**
+ * Выраўнаваць гучнасць ужо гатовага гуку на месцы: RMS гучных акон (50 мс) — да TARGET_RMS, пікі — мякка пад 0,95.
+ * Ціхія паўзы і «хвост» рэверберацыі не ўплываюць на ацэнку. Вяртае ўжыты множнік.
+ * @param {Float32Array[]} channels
+ */
+export function normalizeLoudness(channels, sampleRate) {
+  const window = Math.max(1, Math.round(sampleRate * 0.05)), length = channels[0]?.length ?? 0, powers = [];
+  for (let start = 0; start < length; start += window) {
+    let sum = 0, n = 0;
+    for (const data of channels) for (let i = start; i < Math.min(length, start + window); i++, n++) sum += data[i] * data[i];
+    if (n) powers.push(sum / n);
+  }
+  const loudest = Math.max(0, ...powers);
+  if (!loudest) return 1;
+  const speech = powers.filter(p => p > loudest * 0.01);
+  const rms = Math.sqrt(speech.reduce((a, b) => a + b, 0) / speech.length);
+  const gain = Math.min(20, TARGET_RMS / rms);
+  for (const data of channels) {
+    for (let i = 0; i < data.length; i++) {
+      const y = data[i] * gain, a = Math.abs(y);
+      data[i] = a <= KNEE ? y : Math.sign(y) * (KNEE + 0.25 * Math.tanh((a - KNEE) / 0.25));
+    }
+  }
+  return gain;
+}
+
+/**
+ * Голас з эфектамі персанажа, загадзя пралічаны (OfflineAudioContext) і выраўнаваны па гучнасці:
+ * усе персанажы гучаць аднолькава гучна, незалежна ад голасу мадэлі і эфектаў.
+ * @param {AudioBuffer} buffer
+ * @returns {Promise<AudioBuffer>}
+ */
+export async function renderVoice(buffer, persona) {
+  const ms = voiceDurationMs(buffer.duration * 1000, persona) + 100;
+  const ctx = new OfflineAudioContext(2, Math.ceil(buffer.sampleRate * ms / 1000), buffer.sampleRate);
+  playVoice(ctx, buffer, persona ?? {}, { volume: 1, when: 0 });
+  const rendered = await ctx.startRendering();
+  normalizeLoudness([rendered.getChannelData(0), rendered.getChannelData(1)], rendered.sampleRate);
+  return rendered;
+}
+
+/** Прайграць пралічаны голас (renderVoice). Вяртае працягласць (мс) і `stop()`. */
+export function playRendered(ctx, rendered, { volume = 1, destination = ctx.destination } = {}) {
+  const source = ctx.createBufferSource(), gain = ctx.createGain();
+  source.buffer = rendered;
+  gain.gain.value = Math.max(0, Math.min(1, volume));
+  source.connect(gain).connect(destination);
+  source.start();
+  let stopped = false;
+  return {
+    duration: Math.round(rendered.duration * 1000),
+    stop: () => { if (stopped) return; stopped = true; try { source.stop(); } catch { /* ужо спынены */ } gain.disconnect(); },
+  };
 }

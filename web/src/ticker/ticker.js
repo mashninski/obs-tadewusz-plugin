@@ -2,7 +2,7 @@
 // Платнае паведамленне з голасам: старонка загадзя загружае аўдыя, падаўжае паказ на час гучання
 // і пускае голас з эфектамі персанажа, калі плашка выехала. Гук ідзе ў OBS праз «Кіраваць гукам праз OBS».
 import { boldParts } from '../../../shared/ticker-text.js';
-import { personaById, playVoice, voiceDurationMs } from '../../../shared/voice-personas.js';
+import { personaById, playRendered, renderVoice } from '../../../shared/voice-personas.js';
 const card=document.querySelector('#card'),nick=document.querySelector('#nick'),viewport=document.querySelector('#viewport'),message=document.querySelector('#message');
 const client=crypto.randomUUID(),params=new URLSearchParams(location.search),source=params.get('source'),preview=params.has('preview');
 let current=null,generation=0,lastHeartbeat=0,exiting=false,visible=true,controller=null,audio=null,playback=null;
@@ -37,8 +37,9 @@ async function loadVoice(job){
     audio??=new AudioContext();
     if(audio.state==='suspended')await audio.resume().catch(()=>{});
     const r=await fetch(`/ticker/audio?id=${encodeURIComponent(job.id)}`);if(!r.ok)return null;
-    const buffer=await audio.decodeAudioData(await r.arrayBuffer());
-    return {persona,buffer,ms:voiceDurationMs(buffer.duration*1000,persona)};
+    // Эфекты пралічваюцца загадзя, і гучнасць выраўноўваецца: усе персанажы аднолькава гучныя.
+    const buffer=await renderVoice(await audio.decodeAudioData(await r.arrayBuffer()),persona);
+    return {persona,buffer,ms:Math.round(buffer.duration*1000)};
   }catch{return null;}
 }
 function wait(ms,signal){return new Promise(resolve=>{
@@ -94,7 +95,7 @@ export async function show(job,c,voiceConfig={volume:1}){
   }
   card.dataset.phase='plate';
   if(!await play(card,[{transform:'translateX(-102%)',opacity:0},{transform:'translateX(0)',opacity:1}],{duration:1400,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'},job,valid))return;
-  if(voice){try{playback=playVoice(audio,voice.buffer,voice.persona,{volume:voiceConfig.volume});}catch{playback=null;}}
+  if(voice){try{playback=playRendered(audio,voice.buffer,{volume:voiceConfig.volume});}catch{playback=null;}}
   if(job.nick){
     card.dataset.phase='nick';
     if(!await play(nick,[{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:nickMs,easing:'cubic-bezier(.25,.1,.25,1)',fill:'forwards'},job,valid))return;

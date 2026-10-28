@@ -146,9 +146,11 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     ticker.setReady(proof);
     tickerSourceName = proof.name ?? null;
     // Голас радка павінен ісці ў мікшар OBS (і ў эфір), а не проста ў дынамікі: адзін раз уключыць «Кіраваць гукам праз OBS».
-    if (voice.wanted() && tickerSourceName && tickerAudioRouted !== tickerSourceName) {
-      tickerAudioRouted = tickerSourceName;
-      routeTickerAudio(obs, tickerSourceName).catch(() => { tickerAudioRouted = null; });
+    // Маніторынг (стрымер чуе голас сам) — па наладзе голасу; змена налады прымяняецца тут жа.
+    const route = tickerSourceName && `${tickerSourceName}|${voice.config().monitor}`;
+    if (voice.wanted() && route && tickerAudioRouted !== route) {
+      tickerAudioRouted = route;
+      routeTickerAudio(obs, tickerSourceName, { monitor: voice.config().monitor }).catch(() => { tickerAudioRouted = null; });
     }
     // Крыніца ёсць у эфіры, а старонка не адказвае (напрыклад, адкрылася раней за ядро) — адзін раз абнавіць яе.
     if (proof.source && !ticker.consumer() && tickerSourceName && !tickerRefreshTried) {

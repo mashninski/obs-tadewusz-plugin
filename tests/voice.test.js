@@ -216,3 +216,48 @@ test('голас: пасля прастою мадэль спіць, узнаг�
   await flush();
   assert.equal(beat().job.audio, 'ready');
 });
+
+test('голас: гучнасць персанажаў выраўноўваецца — ціхі і гучны гук даходзяць да адной гучнасці, пікі пад 0,95', async () => {
+  const { normalizeLoudness } = await import('../shared/voice-personas.js');
+  const rate = 24000, rms = data => Math.sqrt(data.reduce((a, x) => a + x * x, 0) / data.length);
+  const tone = (amp, silence = 0) => {
+    const data = new Float32Array(rate * 2);
+    for (let i = silence; i < data.length; i++) data[i] = amp * Math.sin(i * 0.05);
+    return data;
+  };
+  const quiet = tone(0.02), loud = tone(0.9), halfSilent = tone(0.3, rate);
+  for (const data of [quiet, loud]) normalizeLoudness([data], rate);
+  normalizeLoudness([halfSilent], rate);
+  assert.ok(Math.abs(rms(quiet) - rms(loud)) < 0.005, `${rms(quiet)} / ${rms(loud)}`);
+  assert.ok(Math.abs(rms(quiet) - 0.1) < 0.01);
+  // Цішыня ў пачатку не робіць голас гучнейшым.
+  assert.ok(Math.abs(rms(halfSilent.subarray(rate)) - 0.1) < 0.01);
+  for (const data of [quiet, loud, halfSilent]) assert.ok(Math.max(...data.map(Math.abs)) < 0.95);
+  assert.equal(normalizeLoudness([new Float32Array(100)], rate), 1, 'цішыня застаецца цішынёй');
+});
+
+test('голас: гук радка ідзе ў мікшар OBS, маніторынг — па наладзе', async () => {
+  const { routeTickerAudio } = await import('../core/obs/ticker-source.js');
+  const input = { settings: { reroute_audio: false }, monitorType: 'OBS_MONITORING_TYPE_NONE' };
+  const obs = {
+    state: { connected: true },
+    async request(type, data) {
+      switch (type) {
+        case 'GetInputSettings': return { inputSettings: { ...input.settings } };
+        case 'SetInputSettings': Object.assign(input.settings, data.inputSettings); return {};
+        case 'GetInputAudioMonitorType': return { monitorType: input.monitorType };
+        case 'SetInputAudioMonitorType': input.monitorType = data.monitorType; return {};
+        default: throw new Error(`unexpected ${type}`);
+      }
+    },
+  };
+  assert.deepEqual(await routeTickerAudio(obs, 'Радок', { monitor: true }), { changed: true });
+  assert.equal(input.settings.reroute_audio, true);
+  assert.equal(input.monitorType, 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT');
+  assert.deepEqual(await routeTickerAudio(obs, 'Радок', { monitor: true }), { changed: false });
+  await routeTickerAudio(obs, 'Радок', { monitor: false });
+  assert.equal(input.monitorType, 'OBS_MONITORING_TYPE_NONE');
+  // Свой маніторынг стрымера («толькі маніторынг») без налады не чапаецца.
+  input.monitorType = 'OBS_MONITORING_TYPE_MONITOR_ONLY';
+  assert.deepEqual(await routeTickerAudio(obs, 'Радок', { monitor: false }), { changed: false });
+});

@@ -61,6 +61,7 @@ export interface VoiceConfig {
   device: 'cpu' | 'cuda';
   steps: 16 | 32;
   idle: number;
+  monitor: boolean;
 }
 
 export interface IntroLink {
