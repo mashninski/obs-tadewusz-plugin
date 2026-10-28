@@ -42,15 +42,34 @@ export function validateText(text, limit = 500) {
   return text;
 }
 
+/**
+ * Тэкст гледача: нябачныя знакі (прабелы нулявой шырыні, кіраванне кірункам, «тэгі», якія ўстаўляюць пашырэнні
+ * чата Twitch) выкідаюцца, табуляцыя і пераносы — у прабел. Злучальнік эмодзі (ZWJ) застаецца.
+ */
+export function cleanViewerText(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/[\t\n\r\v\f\u2028\u2029]+/g, ' ')
+    .replace(/(?!\u200D)[\p{Cc}\p{Cf}\p{Cs}\u{E0000}-\u{E007F}]/gu, '')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
 export const tickerDefaults = {
   version: 1, enabled: false, interval: 300, width: 960, height: 190, font: 'Onest', size: 30, speed: 18,
   accent: '#79d6b3', opacity: 0.94, cost: 1000, title: 'Паведамленне голасам',
-  prompt: 'Ваш тэкст прагучыць на стрыме выпадковым голасам і з’явіцца ў радку',
+  prompt: 'Да 1000 знакаў · тэкст прагучыць на стрыме выпадковым голасам і з’явіцца ў радку',
   announcements: [],
 };
 
-/** Назва і падказка ўзнагароды да агучвання: калі стрымер іх не мяняў, яны замяняюцца новымі. */
-export const LEGACY_TICKER_REWARD = { title: 'Паведамленне на экране', prompt: 'Увядзіце паведамленне: да 500 знакаў' };
+/** Даўжэйшае платнае паведамленне адхіляецца — балы вяртаюцца. */
+export const PAID_TEXT_LIMIT = 1000;
+
+/** Ранейшыя назва і падказкі ўзнагароды па змаўчанні: калі стрымер іх не мяняў, яны замяняюцца новымі. */
+export const LEGACY_TICKER_REWARD = {
+  title: 'Паведамленне на экране',
+  prompts: ['Увядзіце паведамленне: да 500 знакаў', 'Ваш тэкст прагучыць на стрыме выпадковым голасам і з’явіцца ў радку'],
+};
 
 export function validateTicker(input) {
   const c = { ...tickerDefaults, ...input };

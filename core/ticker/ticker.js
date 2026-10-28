@@ -4,7 +4,7 @@
 // Калі ўключаны голас (core/voice/voice.js), платнае паведамленне атрымлівае персанажа і чакае аўдыя (audio='pending'),
 // а ў эфір ідзе, калі аўдыя гатовае ('ready') або сінтэз не ўдаўся ('failed' — тады толькі тэкст).
 import { createHash, randomUUID } from 'node:crypto';
-import { LEGACY_TICKER_REWARD, tickerDefaults, validateTicker, validateText } from '../../shared/ticker-text.js';
+import { cleanViewerText, LEGACY_TICKER_REWARD, PAID_TEXT_LIMIT, tickerDefaults, validateTicker, validateText } from '../../shared/ticker-text.js';
 
 const CLIENT_TTL_MS = 3500;
 const MAX_PENDING = 1000;
@@ -33,7 +33,7 @@ export class Ticker {
       if (['Segoe UI', 'Manrope'].includes(c.font)) c.font = 'Onest';
       // Узнагарода перайменавана, калі паведамленні сталі агучвацца: старыя назва і падказка па змаўчанні замяняюцца новымі.
       if (c.title === LEGACY_TICKER_REWARD.title) c.title = tickerDefaults.title;
-      if (c.prompt === LEGACY_TICKER_REWARD.prompt) c.prompt = tickerDefaults.prompt;
+      if (LEGACY_TICKER_REWARD.prompts.includes(c.prompt)) c.prompt = tickerDefaults.prompt;
       return c;
     } catch {
       this.fault = 'ticker_settings';
@@ -233,11 +233,14 @@ export class Ticker {
         return { duplicate: true };
       }
       if (!['UNFULFILLED', 'FULFILLED', 'CANCELED'].includes(status)) throw new Error('ticker_purchase_format');
+      // Нябачныя знакі не адхіляюць пакупку — яны выкідаюцца (іх устаўляюць пашырэнні чата Twitch).
+      const text = cleanViewerText(event.user_input);
       let valid = true;
-      try { validateText(event.user_input); validateText(event.user_name || event.user_login, 80); } catch { valid = false; }
+      try { validateText(text, PAID_TEXT_LIMIT); validateText(event.user_name || event.user_login, 80); } catch { valid = false; }
       const decision = status !== 'UNFULFILLED' ? 'external_terminal' : valid && admitted && this.pending() < MAX_PENDING ? 'queued' : 'rejected';
+      if (decision === 'rejected') this.log('warn', 'ticker.rejected', !valid ? 'text' : !admitted ? 'closed' : 'backpressure');
       this.db.prepare('INSERT INTO ticker_purchases VALUES (?,?,?,?,?,?,?,?,?)').run(id, account, reward, event.id, purchased, cost, status, decision, fingerprint(purchased));
-      if (decision === 'queued') this.queue('paid', event.user_input, {
+      if (decision === 'queued') this.queue('paid', text, {
         purchase: id, nick: event.user_name || event.user_login, voice: this.voice?.wanted() ? this.voice.pick() : null,
       });
       if (decision === 'rejected') this.intent(id, 'CANCELED');
