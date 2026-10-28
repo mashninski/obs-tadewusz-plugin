@@ -1,15 +1,17 @@
 // Бягучы радок: чарга плашак (аб’явы стрымера па раскладзе, уручную і платныя паведамленні гледачоў).
 // Паказ кіруе сервер; старонка ў OBS толькі паведамляе пра этапы (heartbeat/ack).
 // Платнае паведамленне становіцца FULFILLED толькі пасля поўнага паказу; адхіленае або скасаванае — CANCELED.
+// Калі ўключаны голас (core/voice/voice.js), платнае паведамленне атрымлівае персанажа і чакае аўдыя (audio='pending'),
+// а ў эфір ідзе, калі аўдыя гатовае ('ready') або сінтэз не ўдаўся ('failed' — тады толькі тэкст).
 import { createHash, randomUUID } from 'node:crypto';
-import { tickerDefaults, validateTicker, validateText } from '../../shared/ticker-text.js';
+import { LEGACY_TICKER_REWARD, tickerDefaults, validateTicker, validateText } from '../../shared/ticker-text.js';
 
 const CLIENT_TTL_MS = 3500;
 const MAX_PENDING = 1000;
 
 export class Ticker {
-  constructor({ store, now = Date.now, log = () => {} }) {
-    Object.assign(this, { store, now, log });
+  constructor({ store, now = Date.now, log = () => {}, voice = null }) {
+    Object.assign(this, { store, now, log, voice });
     this.db = store.db;
     this.clients = new Map();
     this.readiness = { source: false };
@@ -29,6 +31,9 @@ export class Ticker {
     try {
       const c = validateTicker(this.store.get('ticker.config', tickerDefaults));
       if (['Segoe UI', 'Manrope'].includes(c.font)) c.font = 'Onest';
+      // Узнагарода перайменавана, калі паведамленні сталі агучвацца: старыя назва і падказка па змаўчанні замяняюцца новымі.
+      if (c.title === LEGACY_TICKER_REWARD.title) c.title = tickerDefaults.title;
+      if (c.prompt === LEGACY_TICKER_REWARD.prompt) c.prompt = tickerDefaults.prompt;
       return c;
     } catch {
       this.fault = 'ticker_settings';
@@ -56,10 +61,18 @@ export class Ticker {
   pending() { return this.db.prepare("SELECT count(*) n FROM ticker_jobs WHERE state IN ('queued','showing','exiting','waiting')").get().n; }
   waiting() { return this.db.prepare("SELECT count(*) n FROM ticker_jobs WHERE state='waiting'").get().n; }
 
-  queue(kind, text, { announcement = null, purchase = null, nick = '' } = {}) {
+  queue(kind, text, { announcement = null, purchase = null, nick = '', voice = null } = {}) {
     const id = randomUUID();
-    this.db.prepare("INSERT INTO ticker_jobs(id,kind,announcement,purchase,text,nick,state) VALUES (?,?,?,?,?,?,'queued')").run(id, kind, announcement, purchase, text, nick);
+    this.db.prepare("INSERT INTO ticker_jobs(id,kind,announcement,purchase,text,nick,state,voice,audio,queued_at) VALUES (?,?,?,?,?,?,'queued',?,?,?)")
+      .run(id, kind, announcement, purchase, text, nick, voice, voice ? 'pending' : null, this.now());
     return id;
+  }
+
+  /** Вынік сінтэзу голасу: 'ready' з працягласцю аўдыя (мс) або 'failed' (паказаць толькі тэкст). */
+  setAudio(id, audio, ms = null) {
+    if (!['ready', 'failed'].includes(audio)) throw new Error('ticker_audio');
+    this.commit(() => this.db.prepare("UPDATE ticker_jobs SET audio=?,audio_ms=? WHERE id=? AND audio='pending'").run(audio, audio === 'ready' ? ms : null, id));
+    this.tick();
   }
 
   /** Паказаць аб’яву зараз (у канцы чаргі; аўтаматычная аб’ява, што чакае, замяняецца). */
@@ -125,7 +138,10 @@ export class Ticker {
     this.clients.set(client, { at: this.now(), visible: visible === true, obs: obs === true });
     this.tick();
     const live = this.consumer() === client && !this.fault;
-    return { config: this.config(), job: live ? this.active() : null, ready: live && this.readiness.source, error: this.fault };
+    return {
+      config: this.config(), job: live ? this.active() : null, ready: live && this.readiness.source, error: this.fault,
+      voice: { volume: this.voice?.volume() ?? 1 },
+    };
   }
 
   /** Адзіная бачная старонка бягучага радка ў OBS — толькі ёй дазволена паказваць. */
@@ -158,7 +174,8 @@ export class Ticker {
       this.commit(() => this.queue('automatic', a.text, { announcement: a.id }));
     }
     const next = this.db.prepare("SELECT * FROM ticker_jobs WHERE state='queued' ORDER BY seq LIMIT 1").get();
-    if (!next) return;
+    // Паведамленне з голасам чакае аўдыя (звычайна некалькі секунд); чарга за ім таксама чакае — парадак захоўваецца.
+    if (!next || next.audio === 'pending') return;
     this.commit(() => this.db.prepare("UPDATE ticker_jobs SET state='showing',attempt=?,generation=generation+1,started=?,duration=NULL WHERE id=?")
       .run(randomUUID(), this.now(), next.id));
   }
@@ -220,7 +237,9 @@ export class Ticker {
       try { validateText(event.user_input); validateText(event.user_name || event.user_login, 80); } catch { valid = false; }
       const decision = status !== 'UNFULFILLED' ? 'external_terminal' : valid && admitted && this.pending() < MAX_PENDING ? 'queued' : 'rejected';
       this.db.prepare('INSERT INTO ticker_purchases VALUES (?,?,?,?,?,?,?,?,?)').run(id, account, reward, event.id, purchased, cost, status, decision, fingerprint(purchased));
-      if (decision === 'queued') this.queue('paid', event.user_input, { purchase: id, nick: event.user_name || event.user_login });
+      if (decision === 'queued') this.queue('paid', event.user_input, {
+        purchase: id, nick: event.user_name || event.user_login, voice: this.voice?.wanted() ? this.voice.pick() : null,
+      });
       if (decision === 'rejected') this.intent(id, 'CANCELED');
       return { accepted: decision === 'queued', decision };
     });
@@ -229,7 +248,7 @@ export class Ticker {
   snapshot() {
     return {
       config: this.config(), source: this.source, current: this.active(), waiting: this.waiting(),
-      queue: this.db.prepare("SELECT id,kind,nick,text,state FROM ticker_jobs WHERE state IN ('queued','waiting') ORDER BY seq LIMIT 50").all(),
+      queue: this.db.prepare("SELECT id,kind,nick,text,state,voice,audio FROM ticker_jobs WHERE state IN ('queued','waiting') ORDER BY seq LIMIT 50").all(),
       cycle: this.store.get('ticker.cycle', {}), ready: this.readiness, consumer: !!this.consumer(), error: this.fault,
       refunds: this.db.prepare('SELECT target,state,error,count(*) AS count FROM ticker_outbox GROUP BY target,state,error ORDER BY target,state,error').all(),
     };

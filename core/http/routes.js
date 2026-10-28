@@ -1,12 +1,13 @@
 // API дока і оверлеяў.
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { ensureIntroScene } from '../obs/intro-scene.js';
 
 const bool = value => { if (typeof value !== 'boolean') throw new Error('value_format'); return value; };
 const id = value => { if (typeof value !== 'string' || !value || value.length > 100) throw new Error('value_format'); return value; };
 
 export function routes(ctx) {
-  const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications,
+  const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications,
     obs, steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
     introSourceUrl, pageSourceUrl } = ctx;
 
@@ -17,6 +18,7 @@ export function routes(ctx) {
       carryPreview: vote.carryPending ? voting.previewCarry() : null,
       reception: votingReception.snapshot(),
       ticker: { ...ticker.snapshot(), reception: tickerReception.snapshot() },
+      voice: voice.snapshot(),
       twitch: { ...twitch.status, login: twitch.identity?.login ?? null, flow: !!twitch.flow },
       legacyMusicRewards: !!legacyMusic.clientId(),
       eventsub: eventsub.state,
@@ -69,6 +71,13 @@ export function routes(ctx) {
       try { await steam.callback(url.searchParams); } catch {}
       res.writeHead(303, { Location: '/' });
       res.end();
+    },
+    // Аўдыя голасу для старонкі радка і для «Праслухаць» у доку.
+    '/ticker/audio': async (url, res) => {
+      let bytes;
+      try { bytes = await readFile(voice.file(url.searchParams.get('id'))); } catch { throw new Error('voice_audio'); }
+      res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      res.end(bytes);
     },
     '/api/music/identity': () => music.identity(),
     '/api/music/obs': () => music.obs(),
@@ -174,6 +183,15 @@ export function routes(ctx) {
       return tickerReception.snapshot();
     }),
     '/ticker/heartbeat': body => ticker.heartbeat(body),
+
+    // --- Голас (OmniVoice) ---
+    '/api/voice/config': body => voice.save(body),
+    '/api/voice/restart': () => { voice.stop(); voice.failures = 0; voice.restartAt = 0; return { restarted: true }; },
+    '/api/voice/test': async body => {
+      if (voice.wake()) throw new Error('voice_waking');
+      const text = typeof body.text === 'string' && body.text.trim() ? body.text.trim().slice(0, 200) : 'Прывітанне! Так гучыць голас для паведамленняў гледачоў.';
+      return voice.test(randomUUID(), text, typeof body.persona === 'string' ? body.persona : voice.pick());
+    },
     '/ticker/ack': body => ticker.acknowledge(body),
 
     // --- Інтро ---

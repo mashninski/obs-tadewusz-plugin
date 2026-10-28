@@ -44,9 +44,13 @@ export function validateText(text, limit = 500) {
 
 export const tickerDefaults = {
   version: 1, enabled: false, interval: 300, width: 960, height: 190, font: 'Onest', size: 30, speed: 18,
-  accent: '#79d6b3', opacity: 0.94, cost: 1000, title: 'Паведамленне на экране', prompt: 'Увядзіце паведамленне: да 500 знакаў',
+  accent: '#79d6b3', opacity: 0.94, cost: 1000, title: 'Паведамленне голасам',
+  prompt: 'Ваш тэкст прагучыць на стрыме выпадковым голасам і з’явіцца ў радку',
   announcements: [],
 };
+
+/** Назва і падказка ўзнагароды да агучвання: калі стрымер іх не мяняў, яны замяняюцца новымі. */
+export const LEGACY_TICKER_REWARD = { title: 'Паведамленне на экране', prompt: 'Увядзіце паведамленне: да 500 знакаў' };
 
 export function validateTicker(input) {
   const c = { ...tickerDefaults, ...input };

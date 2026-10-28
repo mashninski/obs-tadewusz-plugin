@@ -49,6 +49,18 @@ export interface TickerJob {
   state: string;
   attempt?: string;
   generation?: number;
+  voice?: string | null;
+  audio?: 'pending' | 'ready' | 'failed' | null;
+}
+
+export interface VoiceConfig {
+  version: 1;
+  enabled: boolean;
+  path: string;
+  volume: number;
+  device: 'cpu' | 'cuda';
+  steps: 16 | 32;
+  idle: number;
 }
 
 export interface IntroLink {
@@ -104,6 +116,10 @@ export interface CoreState {
     cycle: { due?: number }; ready: { source: boolean }; consumer: boolean; error: string | null;
     refunds: { target: string; state: string; error: string | null; count: number }[];
     reception: { wanted: boolean; accepting: boolean; enabled: boolean | null; reward: string | null; error: string | null };
+  };
+  voice: {
+    config: VoiceConfig; state: 'off' | 'missing' | 'starting' | 'ready' | 'sleeping' | 'failed'; available: boolean; detail: string | null;
+    device: string | null; memory: { vramMb: number | null; ramMb: number | null; loadMs: number | null } | null; lastTook: number | null; personas: number;
   };
   twitch: { state: 'disconnected' | 'connecting' | 'connected' | 'error'; error: string | null; login: string | null; flow: boolean };
   /** Засталіся ўзнагароды музыкі ад ранейшага асобнага прыкладання. */
@@ -210,6 +226,15 @@ const ERRORS: Record<string, string> = {
   ticker_settings: 'Праверце налады бягучага радка',
   ticker_announcement: 'Аб’ява не знойдзена · Захавайце змены',
   ticker_backpressure: 'Чарга бягучага радка поўная',
+  voice_settings: 'Праверце налады голасу: тэчка OmniVoice і гучнасць 0–100 %',
+  voice_not_ready: 'Голас яшчэ не гатовы · Пачакайце, пакуль загрузіцца мадэль',
+  voice_waking: 'Мадэль спала — загружаецца · Паспрабуйце праз хвіліну',
+  voice_timeout: 'OmniVoice не адказаў за 2 хвіліны · Працэс перазапушчаны',
+  voice_synthesis: 'OmniVoice не змог агучыць тэкст',
+  voice_worker_exited: 'Працэс OmniVoice спыніўся · Перазапуск…',
+  voice_stopped: 'Голас выключаны',
+  voice_audio: 'Аўдыя не знойдзена',
+  voice_persona: 'Невядомы голас',
   body_limit: 'Занадта шмат тэксту за раз',
   secret_format: 'Пароль або ключ задоўгі',
   steam_connection_required: 'Падключыце Steam і захавайце ключ API',

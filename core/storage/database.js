@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { reserveCode } from '../voting/codes.js';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 const SCHEMA_V2 = `
   CREATE TABLE rounds(id TEXT PRIMARY KEY, opened INTEGER NOT NULL, closed INTEGER, status TEXT NOT NULL, result TEXT);
@@ -86,6 +86,12 @@ export class Store {
       if (version < 5) this.db.exec(SCHEMA_V5);
       if (version < 6) this.migrateSettingsV6();
       if (version < 7) this.migrateRepliesV7();
+      // v8: голас для платных паведамленняў радка (персанаж, стан аўдыя, працягласць, час пастаноўкі ў чаргу).
+      if (version < 8) {
+        const columns = new Set(this.db.prepare('PRAGMA table_info(ticker_jobs)').all().map(c => c.name));
+        for (const [name, type] of [['voice', 'TEXT'], ['audio', 'TEXT'], ['audio_ms', 'INTEGER'], ['queued_at', 'INTEGER']])
+          if (!columns.has(name)) this.db.exec(`ALTER TABLE ticker_jobs ADD COLUMN ${name} ${type}`);
+      }
       this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
     });
   }

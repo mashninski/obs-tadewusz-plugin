@@ -1,6 +1,7 @@
 // Прыём платных паведамленняў для бягучага радка.
 // Узнагарода адкрытая толькі тады, калі ёсць злучэнне і старонка радка бачная ў эфіры OBS:
-// глядач не плаціць за паведамленне, якое ніхто не пакажа.
+// глядач не плаціць за паведамленне, якое ніхто не пакажа. Калі ўключаны голас — яшчэ і толькі пры загружанай мадэлі OmniVoice:
+// глядач не плаціць за голас, якога не будзе.
 import { errorCode } from '../util/log.js';
 
 /** Свой колер фону ўзнагароды: гледачы адразу адрозніваюць яе ад узнагарод галасавання і музыкі. */
@@ -10,8 +11,8 @@ const RECONCILE_EVERY_MS = 300_000;
 const BLOCKING = ['remote_400', 'remote_401', 'remote_403', 'remote_404', 'refund_unavailable', 'redemption_not_found'];
 
 export class TickerReception {
-  constructor({ store, ticker, twitch, eventsub, bindings, log = () => {}, now = Date.now }) {
-    Object.assign(this, { store, ticker, twitch, eventsub, bindings, log, now });
+  constructor({ store, ticker, twitch, eventsub, bindings, log = () => {}, now = Date.now, voice = null }) {
+    Object.assign(this, { store, ticker, twitch, eventsub, bindings, log, now, voice });
     this.applied = null;
     this.reconciledAt = 0;
     this.reconcileNeeded = true;
@@ -31,7 +32,7 @@ export class TickerReception {
 
   accepting() {
     return this.wanted() && !!this.rewardId() && this.twitch.connected && this.eventsub.state === 'connected' && !this.reconcileNeeded
-      && this.ticker.ready() && !this.ticker.waiting() && this.ticker.pending() < 1000;
+      && this.ticker.ready() && !this.ticker.waiting() && this.ticker.pending() < 1000 && (!this.voice?.wanted() || this.voice.available());
   }
 
   // Вокны, калі ўзнагарода была адкрытая: пакупка па-за імі (напрыклад, позняя дастаўка) вяртаецца.

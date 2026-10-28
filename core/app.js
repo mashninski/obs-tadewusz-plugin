@@ -16,7 +16,8 @@ import { Notifications } from './voting/notifications.js';
 import { Bindings, VotingReception } from './voting/reception.js';
 import { Ticker } from './ticker/ticker.js';
 import { TickerReception } from './ticker/reception.js';
-import { tickerSourceStatus } from './obs/ticker-source.js';
+import { Voice } from './voice/voice.js';
+import { routeTickerAudio, tickerSourceStatus } from './obs/ticker-source.js';
 import { Obs } from './obs/obs.js';
 import { Steam } from './steam/steam.js';
 import { Intro } from './intro/intro.js';
@@ -83,8 +84,9 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     store, voting, twitch, eventsub, settings, bindings, log,
     prepare: (event, role) => (role === 'add' ? steam.prepare(event.user_input) : {}),
   });
-  const ticker = new Ticker({ store, log });
-  const tickerReception = new TickerReception({ store, ticker, twitch, eventsub, bindings, log });
+  const voice = new Voice({ store, dataDir, log });
+  const ticker = new Ticker({ store, log, voice: { wanted: () => voice.wanted(), pick: () => voice.pick(), volume: () => voice.config().volume } });
+  const tickerReception = new TickerReception({ store, ticker, twitch, eventsub, bindings, log, voice });
   const obs = new Obs({ url: () => settings().obs.url, password: async () => (await vault.get('obsPassword')) ?? '', log });
   const ownedRewardIds = () => { try { return bindings.ids(twitch.account()); } catch { return []; } };
   const music = new MusicBridge({
@@ -134,13 +136,18 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   };
   twitch.onChange(status => { if (status.state === 'disconnected') eventsub.stop(); });
 
-  let tickerCheckAt = 0, tickerSourceName = null, tickerRefreshTried = false;
+  let tickerCheckAt = 0, tickerSourceName = null, tickerRefreshTried = false, tickerAudioRouted = null;
   const checkTickerSource = async () => {
     if (Date.now() < tickerCheckAt) return;
     tickerCheckAt = Date.now() + 3000;
     const proof = await tickerSourceStatus(obs, ticker.source);
     ticker.setReady(proof);
     tickerSourceName = proof.name ?? null;
+    // Голас радка павінен ісці ў мікшар OBS (і ў эфір), а не проста ў дынамікі: адзін раз уключыць «Кіраваць гукам праз OBS».
+    if (voice.wanted() && tickerSourceName && tickerAudioRouted !== tickerSourceName) {
+      tickerAudioRouted = tickerSourceName;
+      routeTickerAudio(obs, tickerSourceName).catch(() => { tickerAudioRouted = null; });
+    }
     // Крыніца ёсць у эфіры, а старонка не адказвае (напрыклад, адкрылася раней за ядро) — адзін раз абнавіць яе.
     if (proof.source && !ticker.consumer() && tickerSourceName && !tickerRefreshTried) {
       tickerRefreshTried = true;
@@ -155,6 +162,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     await obs.tick().catch(() => {});
     await checkTickerSource().catch(() => {});
     ticker.tick();
+    try { voice.pump(ticker); } catch (error) { log('warn', 'voice.pump', errorCode(error)); }
     await run(async () => {
       if (!twitch.connected && Date.now() >= authRetryAt) await connectTwitch();
       await votingReception.tick();
@@ -172,7 +180,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   const http = await startServer({
     port, webRoot, session, version, log,
     ...routes({
-      store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, notifications, obs,
+      store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications, obs,
       steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
       introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
@@ -196,6 +204,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     await run.idle();
     await run(pauseAllRewards);
     eventsub.stop();
+    voice.close();
     obs.stop();
     music.close();
     await http.close();
@@ -206,5 +215,5 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     log('info', 'app.stopped');
   })();
 
-  return { origin: http.origin, store, voting, ticker, twitch, eventsub, votingReception, tickerReception, backups, intro, obs, close };
+  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, obs, close };
 }

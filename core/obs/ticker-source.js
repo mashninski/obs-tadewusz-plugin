@@ -12,6 +12,15 @@ function fits(t, width, height) {
   return x >= -1 && y >= -1 && x + t.width <= width + 1 && y + t.height <= height + 1;
 }
 
+/** Гук старонкі радка (голас паведамленняў) — у мікшар OBS: тады ён ідзе ў эфір і рэгулюецца як любая крыніца. */
+export async function routeTickerAudio(obs, inputName) {
+  if (!obs.state.connected) throw new Error('obs_disconnected');
+  const { inputSettings } = await obs.request('GetInputSettings', { inputName });
+  if (inputSettings.reroute_audio === true) return { changed: false };
+  await obs.request('SetInputSettings', { inputName, inputSettings: { reroute_audio: true }, overlay: true });
+  return { changed: true };
+}
+
 /** @returns {Promise<{source:boolean, name?:string}>} */
 export async function tickerSourceStatus(obs, sourceId) {
   try {
