@@ -6,9 +6,9 @@ import { extname, join, normalize, sep } from 'node:path';
 
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg',
+  '.png': 'image/png', '.webp': 'image/webp', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg',
 };
-const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html', '/intro': 'intro.html', '/background': 'background.html' };
+const PAGES = { '/': 'dock.html', '/overlay': 'overlay.html', '/ticker': 'ticker.html', '/music': 'music.html', '/intro': 'intro.html', '/background': 'background.html', '/season': 'season.html' };
 const SAFE_ERROR = /^[a-z0-9_:-]{1,80}$/;
 const BODY_LIMIT = 256 * 1024;
 
@@ -19,9 +19,9 @@ export class HttpError extends Error {
 /**
  * @param {{ port:number, webRoot:string, session:string, version:string, log:Function,
  *   get: Record<string, (url:URL, res:import('node:http').ServerResponse) => unknown>,
- *   post: Record<string, (body:any) => unknown> }} options
+ *   post: Record<string, (body:any) => unknown>, limits?: Record<string, number> }} options
  */
-export async function startServer({ port, webRoot, session, version, log, get, post }) {
+export async function startServer({ port, webRoot, session, version, log, get, post, limits = {} }) {
   let origin = '';
   const security = {
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
@@ -50,12 +50,12 @@ export async function startServer({ port, webRoot, session, version, log, get, p
     return true;
   }
 
-  async function readBody(req) {
+  async function readBody(req, limit = BODY_LIMIT) {
     let raw = '', bytes = 0;
     req.setEncoding('utf8');
     for await (const chunk of req) {
       bytes += Buffer.byteLength(chunk);
-      if (bytes > BODY_LIMIT) throw new HttpError(413, 'body_limit');
+      if (bytes > limit) throw new HttpError(413, 'body_limit');
       raw += chunk;
     }
     try { return raw ? JSON.parse(raw) : {}; } catch { throw new HttpError(400, 'invalid_json'); }
@@ -86,7 +86,7 @@ export async function startServer({ port, webRoot, session, version, log, get, p
         || !req.headers['content-type']?.startsWith('application/json')) throw new HttpError(403, 'origin_required');
       const handler = post[url.pathname];
       if (!handler) throw new HttpError(404, 'not_found');
-      json(res, 200, (await handler(await readBody(req))) ?? { ok: true });
+      json(res, 200, (await handler(await readBody(req, limits[url.pathname]))) ?? { ok: true });
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 400;
       const code = SAFE_ERROR.test(error.message) ? error.message : 'operation_failed';

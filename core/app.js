@@ -21,6 +21,7 @@ import { routeTickerAudio, tickerSourceStatus } from './obs/ticker-source.js';
 import { Obs } from './obs/obs.js';
 import { Steam } from './steam/steam.js';
 import { Intro } from './intro/intro.js';
+import { Season } from './season/season.js';
 import { MusicBridge } from './music/bridge.js';
 import { LegacyMusicRewards } from './music/legacy-rewards.js';
 import { replyDefinitions, replyPlaceholders } from './chat/templates.js';
@@ -109,6 +110,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
 
   const legacyMusic = new LegacyMusicRewards({ store, fetchImpl, log });
   const intro = new Intro({ store, twitch, log });
+  const season = new Season({ store, dataDir, log });
   // Сцэна «Інтро» адкрывае старонку праз лакальную старонку чакання (як і астатнія крыніцы): яна дачакаецца ядра.
   const startPage = pathToFileURL(fileURLToPath(new URL('../obs/start.html', import.meta.url))).href;
 
@@ -181,7 +183,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     port, webRoot, session, version, log,
     ...routes({
       store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications, obs,
-      steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
+      steam, music, legacyMusic, intro, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
       introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
       pageSourceUrl: page => `${startPage}?page=${page}&port=${new URL(http.origin).port}`,
@@ -215,5 +217,5 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     log('info', 'app.stopped');
   })();
 
-  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, obs, close };
+  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, season, obs, close };
 }

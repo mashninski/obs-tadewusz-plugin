@@ -80,6 +80,21 @@ export interface IntroConfig {
   donations: boolean;
 }
 
+export type SeasonTheme = 'halloween' | 'winter' | 'autumn' | 'spring' | 'custom';
+export type SeasonMotion = 'auto' | 'float' | 'fall' | 'tumble';
+
+export interface SeasonConfig {
+  version: 1;
+  enabled: boolean;
+  theme: SeasonTheme;
+  motion: SeasonMotion;
+  count: number;
+  size: number;
+  speed: number;
+  opacity: number;
+  fade: boolean;
+}
+
 export interface Settings {
   schemaVersion: number;
   replies: { enabled: boolean; templates: Record<string, string> };
@@ -129,10 +144,11 @@ export interface CoreState {
   steam: { catalog: string; library: string };
   backups: { at: string | null; daily: string | null; error: string | null; location: string | null; external: string };
   intro: { config: IntroConfig; clips: number; byViewers: number; fetchedAt: number | null; fetching: boolean; error: string | null };
+  season: { config: SeasonConfig; images: Record<SeasonTheme, string[]>; maxImages: number; maxBytes: number };
   history: { id: number; at: string; event: string }[];
   replyDefinitions: Record<string, [string, string]>;
   replyPlaceholders: Record<string, string[]>;
-  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; background: string; spotifyRedirect: string };
+  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; season: string; background: string; spotifyRedirect: string };
 }
 
 /** Каманда ядру. Памылка — `Error` з кодам (тэкст — праз `errorText`). */
@@ -247,6 +263,18 @@ const ERRORS: Record<string, string> = {
   obs_required: 'Спачатку падключыце OBS (Сістэма → Падключэнне)',
   obs_disconnected: 'OBS не адказвае · Праверце падключэнне',
   obs_request_timeout: 'OBS не адказаў за 4 секунды · Паўтарыце',
+  season_settings: 'Праверце налады «Сезона»',
+  season_theme: 'Невядомая тэма',
+  season_motion: 'Невядомы від руху',
+  season_count: 'Колькасць: ад 1 да 40',
+  season_size: 'Памер: ад 16 да 256 px',
+  season_speed: 'Хуткасць: ад 20 да 300 %',
+  season_opacity: 'Непразрыстасць: ад 5 да 100 %',
+  season_image: 'Файл не прачытаўся · Паспрабуйце іншы',
+  season_image_size: 'Карцінка большая за 2 МБ',
+  season_image_type: 'Толькі PNG, WebP або SVG',
+  season_image_limit: 'У тэме ўжо 20 карцінак · Выдаліце лішнія',
+  season_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Сезон» іншага тыпу · Перайменуйце яе',
   intro_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Інтро» іншага тыпу · Перайменуйце яе',
   intro_countdown: 'Адлік: ад 10 секунд да 6 гадзін',
   intro_finish_text: 'Надпіс на нулі: ад 1 да 80 знакаў',

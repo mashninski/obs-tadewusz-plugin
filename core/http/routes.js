@@ -2,13 +2,14 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { ensureIntroScene } from '../obs/intro-scene.js';
+import { ensureSeasonSource } from '../obs/season-source.js';
 
 const bool = value => { if (typeof value !== 'boolean') throw new Error('value_format'); return value; };
 const id = value => { if (typeof value !== 'string' || !value || value.length > 100) throw new Error('value_format'); return value; };
 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications,
-    obs, steam, music, legacyMusic, intro, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
+    obs, steam, music, legacyMusic, intro, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
     introSourceUrl, pageSourceUrl } = ctx;
 
   const state = () => {
@@ -26,11 +27,12 @@ export function routes(ctx) {
       steam: steam.state,
       backups: backups.snapshot(),
       intro: intro.snapshot(),
+      season: season.snapshot(),
       history: store.history(),
       replyDefinitions, replyPlaceholders,
       urls: {
         dock: `${baseUrl()}/`, overlay: `${baseUrl()}/overlay`, ticker: `${baseUrl()}/ticker?source=${ticker.source}`,
-        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`,
+        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`, season: `${baseUrl()}/season`,
         // Фон для любой сцэны: праз старонку чакання — загрузіцца, нават калі OBS адкрыўся раней за праграму.
         background: pageSourceUrl('background'), spotifyRedirect: `${baseUrl()}/callback.html`,
       },
@@ -67,6 +69,15 @@ export function routes(ctx) {
     '/intro/clips': () => intro.clips(),
     // Актывацыя сцэны і кожныя ~5 хвілін, пакуль яна ў эфіры: абнавіць спіс кліпаў (не часцей за раз у хвіліну).
     '/intro/activate': () => { intro.refresh().catch(() => {}); return { ok: true }; },
+    // Старонка «Сезон»: налады і адрасы сваіх карцінак бягучай тэмы (апытанне).
+    '/season/state': () => season.overlayState(),
+    '/season/image': (url, res) => {
+      const { bytes, type } = season.read(url.searchParams.get('theme'), url.searchParams.get('name'));
+      // SVG стрымера не павінен выконваць скрыпты, нават калі адкрыць яго адрас напрамую.
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" });
+      res.end(bytes);
+    },
     '/steam/callback': async (url, res) => {
       try { await steam.callback(url.searchParams); } catch {}
       res.writeHead(303, { Location: '/' });
@@ -204,6 +215,12 @@ export function routes(ctx) {
     },
     '/api/intro/scene': () => ensureIntroScene(obs, { url: introSourceUrl() }),
 
+    // --- Сезон ---
+    '/api/season/config': body => season.save(body),
+    '/api/season/upload': body => season.upload(body),
+    '/api/season/remove': body => season.remove(body),
+    '/api/season/source': () => ensureSeasonSource(obs, { url: pageSourceUrl('season') }),
+
     // --- Steam ---
     '/api/steam/login': () => ({ uri: steam.loginUrl() }),
     '/api/steam/library': () => steam.library(),
@@ -226,5 +243,6 @@ export function routes(ctx) {
     '/api/music/import/done': async () => { await vault.set('musicImport', null); return { done: true }; },
   };
 
-  return { get, post };
+  // Карцінка «Сезона» (да 2 МБ) прыходзіць у base64 — гэтаму маршруту можна больш.
+  return { get, post, limits: { '/api/season/upload': 3 * 1024 * 1024 } };
 }
