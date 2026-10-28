@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { boldParts, textLength, toggleBold } from '../../../shared/ticker-text.js';
 import { personaById, playRendered, renderVoice, VOICE_PERSONAS } from '../../../shared/voice-personas.js';
 import { api, errorText, run, type Announcement, type CoreState, type TickerConfig, type VoiceConfig } from './core';
-import { Card, Hero, IconButton, moveItem, NumberField, Pill, Switch, TextField, time, toast, useSortable } from './ui';
+import { Card, Hero, IconButton, moveItem, NumberField, Pill, Row, Switch, TextField, time, toast, useSortable } from './ui';
 
 function status(state: CoreState): { tone: 'good' | 'bad' | 'wait' | 'off'; title: string; detail: string } {
   const t = state.ticker, r = t.reception;
@@ -97,28 +97,19 @@ export function TickerTab({ state }: { state: CoreState }) {
 }
 
 function voiceStatus(voice: CoreState['voice']): { tone: '' | 'good' | 'bad' | 'wait'; label: string; detail: string } {
-  if (!voice.config.enabled) return { tone: '', label: 'выключаны', detail: 'Паведамленні гледачоў паказваюцца без голасу' };
+  if (!voice.config.enabled) return { tone: '', label: 'выключаны', detail: 'Паведамленні без голасу' };
   switch (voice.state) {
-    case 'ready': return { tone: 'good', label: 'гатовы', detail: usage(voice) };
-    case 'sleeping': return { tone: 'good', label: 'спіць', detail: 'Мадэль выгружана пасля прастою — загрузіцца сама, калі прыйдзе паведамленне' };
-    case 'starting': return { tone: 'wait', label: 'загружаецца', detail: 'Мадэль OmniVoice загружаецца (каля хвіліны)' };
-    case 'missing': return { tone: 'bad', label: 'не знойдзены', detail: `Няма ${voice.detail ?? 'python.exe'} · Праверце тэчку OmniVoice` };
-    case 'failed': return { tone: 'bad', label: 'памылка', detail: voice.detail ? `Збой OmniVoice: ${voice.detail}` : 'Збой OmniVoice · Перазапуск…' };
-    default: return { tone: 'wait', label: 'запуск', detail: 'Запуск OmniVoice…' };
+    case 'ready': return { tone: 'good', label: 'гатовы', detail: 'Мадэль загружаная' };
+    case 'sleeping': return { tone: 'good', label: 'спіць', detail: 'Мадэль загрузіцца з першым паведамленнем' };
+    case 'starting': return { tone: 'wait', label: 'загружаецца', detail: 'Мадэль загружаецца · каля хвіліны' };
+    case 'missing': return { tone: 'bad', label: 'не знойдзены', detail: 'OmniVoice не знойдзены · праверце тэчку' };
+    case 'failed': return { tone: 'bad', label: 'памылка', detail: 'Збой OmniVoice · перазапуск' };
+    default: return { tone: 'wait', label: 'запуск', detail: 'Запуск OmniVoice' };
   }
 }
 
-/** Колькі памяці заняла мадэль і як хутка агучвае — каб выбраць прыладу па факце. */
-function usage(voice: CoreState['voice']): string {
-  const m = voice.memory, parts: string[] = [];
-  const gb = (mb: number) => `${(mb / 1024).toFixed(1).replace('.', ',')} ГБ`;
-  parts.push(voice.device === 'cpu' ? 'Працэсар' : 'Відэакарта');
-  if (m?.vramMb) parts.push(`відэапамяць ${gb(m.vramMb)}`);
-  if (m?.ramMb) parts.push(`RAM ${gb(m.ramMb)}`);
-  if (m?.loadMs) parts.push(`загрузка ${Math.round(m.loadMs / 1000)} с`);
-  if (voice.lastTook) parts.push(`апошні сінтэз ${(voice.lastTook / 1000).toFixed(1).replace('.', ',')} с`);
-  return parts.join(' · ');
-}
+const gb = (mb: number) => `${(mb / 1024).toFixed(1).replace('.', ',')} ГБ`;
+const sec = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} с`;
 
 let previewAudio: AudioContext | null = null;
 
@@ -163,38 +154,51 @@ function VoiceCard({ state }: { state: CoreState }) {
     }
   };
 
+  const loaded = voice.state === 'ready';
+  const broken = voice.state === 'missing' || voice.state === 'failed';
   return (
     <Card title="Голас" collapsible
       actions={<Pill tone={v.tone}>{v.label}</Pill>}
-      help={`Платнае паведамленне агучвае OmniVoice — кожны раз выпадковым з ${VOICE_PERSONAS.length} персанажаў (ад «Бабулі з лаўкі» да «Робата Тадэвуша»), без паўтораў запар. Тэкст паказваецца ў радку, а імя персанажа — побач з нікам.\n\nПраграма сама запускае OmniVoice у фоне разам з OBS і закрывае разам з ім — асобна нічога запускаць не трэба.\n\nПрылада: на працэсары мадэль не займае відэапамяць, але агучвае павольней; на відэакарце — хутка, але займае відэапамяць (колькі — відаць у радку стану). Пасля прастою мадэль выгружаецца і вызваляе памяць.\n\nГук ідзе праз крыніцу радка ў мікшары OBS (праграма сама ўключае ў ёй «Кіраваць гукам праз OBS»).`}>
+      help={`Платнае паведамленне агучвае выпадковы з ${VOICE_PERSONAS.length} персанажаў, без паўтораў запар
+
+OmniVoice запускаецца і закрываецца разам з OBS. Пасля прастою мадэль выгружаецца і вызваляе памяць
+
+Голас ідзе праз крыніцу радка ў эфір. «Чуць у навушніках» — каб чуць яго і без эфіру`}>
       <div class="stack">
         <Switch label="Агучваць паведамленні гледачоў" checked={draft.enabled} onChange={(enabled) => update({ enabled })} />
-        <p class="hint">{v.detail}</p>
+        {draft.enabled && (
+          <div class="kv-pair">
+            <Row label="Апошні сінтэз" tone={voice.lastTook ? '' : 'muted'}>{voice.lastTook ? sec(voice.lastTook) : '—'}</Row>
+            <Row label={voice.device === 'cpu' ? 'Памяць' : 'Відэапамяць'} tone={loaded ? '' : 'muted'}>
+              {loaded && voice.memory ? gb((voice.device === 'cpu' ? voice.memory.ramMb : voice.memory.vramMb) ?? 0) : '—'}
+            </Row>
+            <Row label="Загрузка" tone={loaded ? '' : 'muted'}>{loaded && voice.memory?.loadMs ? sec(voice.memory.loadMs) : '—'}</Row>
+          </div>
+        )}
+        {draft.enabled && broken && <p class="hint bad" style={{ margin: 0 }}>{v.detail}</p>}
         <div class="fields wide">
-          <TextField label="Тэчка OmniVoice" value={draft.path} maxLength={260} onChange={(path) => update({ path })} />
           <NumberField label="Гучнасць" suffix="%" value={Math.round(draft.volume * 100)} min={0} max={100} onChange={(n) => update({ volume: Math.max(0, Math.min(100, n)) / 100 })} />
           <label class="field"><span>Прылада</span>
             <select value={draft.device} onChange={(e) => update({ device: e.currentTarget.value as VoiceConfig['device'] })}>
-              <option value="cuda">Відэакарта (~2 ГБ відэапамяці, 1–3 с)</option>
-              <option value="cpu">Працэсар (без відэапамяці, ~1 хв)</option>
+              <option value="cuda">Відэакарта</option>
+              <option value="cpu">Працэсар</option>
             </select>
           </label>
           <label class="field"><span>Якасць</span>
             <select value={String(draft.steps)} onChange={(e) => update({ steps: Number(e.currentTarget.value) as VoiceConfig['steps'] })}>
-              <option value="16">Хутка (16 крокаў)</option>
-              <option value="32">Лепш (32 крокі)</option>
+              <option value="16">Хутка</option>
+              <option value="32">Лепш</option>
             </select>
           </label>
-          <NumberField label="Выгружаць пасля прастою" suffix="хв" value={draft.idle} min={0} max={240} onChange={(n) => update({ idle: Math.max(0, Math.min(240, Math.round(n))) })} />
+          <NumberField label="Выгружаць праз" suffix="хв" value={draft.idle} min={0} max={240} onChange={(n) => update({ idle: Math.max(0, Math.min(240, Math.round(n))) })} />
+          {broken && <TextField label="Тэчка OmniVoice" value={draft.path} maxLength={260} onChange={(path) => update({ path })} />}
         </div>
-        <Switch label="Чуць голас самому (маніторынг OBS)" checked={draft.monitor} onChange={(monitor) => update({ monitor })} />
-        <p class="hint">Голас ідзе праз крыніцу радка ў эфір і запіс. З маніторынгам ён гучыць і ў вашых навушніках — як у «Пашыраных уласцівасцях аўдыя» → «Маніторынг і вывад». Калі ў эфіры голас задвойваецца, выключыце.</p>
-        <p class="hint">0 хв — мадэль не выгружаецца. Пасля выгрузкі першае паведамленне чакае загрузку мадэлі.</p>
+        <Switch label="Чуць у навушніках" checked={draft.monitor} onChange={(monitor) => update({ monitor })} />
         <div class="actions">
-          <button class="btn" disabled={busy || (voice.state !== 'ready' && voice.state !== 'sleeping')} onClick={listen}>{busy ? 'Агучваю…' : 'Праслухаць выпадковы голас'}</button>
-          {voice.config.enabled && voice.state !== 'ready' && voice.state !== 'starting'
+          <button class="btn" disabled={busy || (voice.state !== 'ready' && voice.state !== 'sleeping')} onClick={listen}>{busy ? 'Агучваю…' : 'Праслухаць'}</button>
+          {voice.config.enabled && broken
             && <button class="btn" onClick={() => run(() => api('/api/voice/restart'), 'OmniVoice перазапускаецца')}>Перазапусціць</button>}
-          {last && <span class="muted small">Гучаў: {last}</span>}
+          {last && <span class="muted small">{last}</span>}
         </div>
       </div>
     </Card>

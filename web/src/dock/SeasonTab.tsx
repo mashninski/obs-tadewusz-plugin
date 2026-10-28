@@ -9,7 +9,7 @@ const THEMES: { id: SeasonTheme; label: string }[] = [
   { id: 'winter', label: 'Зіма — сняжынкі' },
   { id: 'autumn', label: 'Восень — лісце' },
   { id: 'spring', label: 'Вясна — пялёсткі' },
-  { id: 'custom', label: 'Свая — толькі свае карцінкі' },
+  { id: 'custom', label: 'Свае карцінкі' },
 ];
 
 const MOTIONS: { id: SeasonMotion; label: string }[] = [
@@ -41,7 +41,7 @@ export function SeasonTab({ state }: { state: CoreState }) {
     <>
       <Hero tone={!draft.enabled ? 'off' : empty ? 'wait' : 'good'}
         title={draft.enabled ? theme.label : 'Сезон выключаны'}
-        detail={empty ? 'Дадайце свае карцінкі ніжэй' : draft.enabled ? `${draft.count} шт. на экране` : 'Уключыце, каб аб’екты з’явіліся ў крыніцы'}>
+        detail={empty ? 'Няма сваіх карцінак' : draft.enabled ? `${draft.count} на экране · ${Math.round(draft.opacity * 100)} %` : 'Аб’екты схаваныя'}>
         <button class="btn primary" disabled={!state.obs.connected} title={state.obs.connected ? '' : 'OBS не падключаны'}
           onClick={async () => {
             const result = await run(() => api<{ sceneName: string; inputCreated: boolean; itemCreated: boolean }>('/api/season/source'), '');
@@ -50,7 +50,7 @@ export function SeasonTab({ state }: { state: CoreState }) {
       </Hero>
 
       <Card title="Выгляд"
-        help={'Празрыстая крыніца «Tadewusz · Сезон» на ўвесь кадр — верхнім слоем у сцэне, якая зараз у праграме. У іншыя сцэны яе можна дадаць у OBS як існуючую крыніцу.\n\nАб’екты рухаюцца павольна і не затрымліваюцца ў цэнтры кадра. Пакуль крыніца схаваная, старонка нічога не малюе.\n\n«Растаюць і з’яўляюцца» — кожны аб’ект часам плаўна знікае і з’яўляецца ў іншым месцы.'}>
+        help={'Кнопка кладзе празрыстую крыніцу «Tadewusz · Сезон» на ўвесь кадр, верхнім слоем у сцэну ў эфіры\n\nУ іншыя сцэны яе можна дадаць у OBS як існуючую крыніцу'}>
         <div class="stack">
           <Switch label="Паказваць" checked={draft.enabled} onChange={(enabled) => set({ enabled })} />
           <div class="fields wide">
@@ -65,7 +65,7 @@ export function SeasonTab({ state }: { state: CoreState }) {
               </select>
             </label>
           </div>
-          <div class="fields">
+          <div class="fields wide">
             <NumberField label="Колькасць" value={draft.count} min={1} max={40} onChange={(n) => set({ count: clamp(Math.round(n), 1, 40) })} />
             <NumberField label="Памер" suffix="px" value={draft.size} min={16} max={256} onChange={(n) => set({ size: clamp(Math.round(n), 16, 256) })} />
             <NumberField label="Хуткасць" suffix="%" value={Math.round(draft.speed * 100)} min={20} max={300} step={10}
@@ -73,7 +73,7 @@ export function SeasonTab({ state }: { state: CoreState }) {
             <NumberField label="Непразрыстасць" suffix="%" value={Math.round(draft.opacity * 100)} min={5} max={100} step={5}
               onChange={(n) => set({ opacity: clamp(Math.round(n), 5, 100) / 100 })} />
           </div>
-          <Switch label="Растаюць і з’яўляюцца ў іншым месцы" checked={draft.fade} onChange={(fade) => set({ fade })} />
+          <Switch label="Часам растаюць і з’яўляюцца ў іншым месцы" checked={draft.fade} onChange={(fade) => set({ fade })} />
         </div>
       </Card>
 
@@ -109,7 +109,7 @@ function Images({ theme, images, max, maxBytes }: { theme: SeasonTheme; images: 
   return (
     <Card title={`Свае карцінкі · ${images.length} / ${max}`}
       actions={<button class="btn" disabled={busy || images.length >= max} onClick={() => input.current?.click()}>{busy ? 'Загружаю…' : 'Дадаць'}</button>}
-      help={'PNG, WebP або SVG да 2 МБ, не больш за 20 у тэме. Лепш — з празрыстым фонам, каля 256 px.\n\nСвае карцінкі лётаюць разам з убудаванымі аб’ектамі тэмы; у тэме «Свая» — толькі яны. Рух выбіраецца вышэй.\n\nФайлы захоўваюцца ў тэчцы даных праграмы (data\\season).'}>
+      help={'PNG, WebP або SVG да 2 МБ, да 20 у тэме · лепш з празрыстым фонам\n\nЛётаюць разам з аб’ектамі тэмы'}>
       <input ref={input} type="file" accept="image/png,image/webp,image/svg+xml,.png,.webp,.svg" multiple hidden
         onChange={(e) => void upload(e.currentTarget.files)} />
       {images.length ? (
@@ -122,7 +122,7 @@ function Images({ theme, images, max, maxBytes }: { theme: SeasonTheme; images: 
             </li>
           ))}
         </ul>
-      ) : <p class="empty-line">Сваіх карцінак у гэтай тэме няма</p>}
+      ) : <p class="empty-line">Няма · «Дадаць» загружае PNG, WebP або SVG</p>}
     </Card>
   );
 }

@@ -75,7 +75,7 @@ export async function show(job,c,voiceConfig={volume:1}){
   hide();configure(c);current=job;const g=generation,signal=(controller=new AbortController()).signal;
   const valid=()=>g===generation&&!exiting&&!signal.aborted;
   const voice=preview?null:await loadVoice(job);if(!valid())return;
-  nick.textContent=voice&&job.nick?`${job.nick} · ${voice.persona.name}`:job.nick;const tokens=words(job);message.style.transform='translateY(0)';
+  nick.textContent=job.nick;const tokens=words(job);message.style.transform='translateY(0)';
   await document.fonts.load(`${c.size}px ${card.style.fontFamily}`);
   await document.fonts.ready;if(!valid())return;
   // Для вымярэння плашка павінна быць паказаная, але CSS трымае яе празрыстай да свайго этапу.
