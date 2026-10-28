@@ -1,6 +1,7 @@
 // Ці бачны бягучы радок у эфіры: роўна адна ўключаная крыніца-браўзер з нашым `source` у бягучай праграмнай сцэне
 // (з улікам укладзеных сцэн і груп), без фільтраў, павароту і абрэзкі, цалкам у кадры і зверху іншых.
 // Невядомае або неадназначнае — «не бачны»: глядач не павінен плаціць за паведамленне, якое не пакажуць.
+import { SEASON_INPUT } from './season-source.js';
 
 function fits(t, width, height) {
   const numbers = ['width', 'height', 'sourceWidth', 'sourceHeight', 'scaleX', 'scaleY', 'positionX', 'positionY', 'rotation', 'alignment'];
@@ -43,7 +44,8 @@ export async function tickerSourceStatus(obs, sourceId) {
         if (!item.sceneItemEnabled) continue;
         const t = item.sceneItemTransform;
         if (!t || t.width <= 0 || t.height <= 0) continue;
-        const onTop = !sceneItems.some(other => other.sceneItemEnabled && other.sceneItemIndex > item.sceneItemIndex);
+        // Празрысты «Сезон» (ADR-031) ляжыць верхнім слоем, але радок не закрывае.
+        const onTop = !sceneItems.some(other => other.sceneItemEnabled && other.sceneItemIndex > item.sceneItemIndex && other.sourceName !== SEASON_INPUT);
         const geometry = ancestorsSafe && onTop && fits(t, width, height);
         if (item.isGroup || item.sourceType === 'OBS_SOURCE_TYPE_SCENE') {
           await walk(item.sourceName, item.isGroup, path, t.sourceWidth, t.sourceHeight, geometry && await unfiltered(item.sourceName));

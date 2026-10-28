@@ -268,3 +268,30 @@ test('API сезона: налады, карцінкі (у тым ліку вя�
   assert.deepEqual(await (await post('/api/season/source')).json(), { error: 'obs_required' });
   assert.equal((await fetch(`${origin}/season/state`)).status, 401);
 });
+
+test('бягучы радок пад «Сезонам» застаецца бачным; пад іншай крыніцай — не', async () => {
+  const { tickerSourceStatus } = await import('../core/obs/ticker-source.js');
+  const transform = { width: 1920, height: 80, sourceWidth: 1920, sourceHeight: 80, scaleX: 1, scaleY: 1, positionX: 0, positionY: 1000,
+    rotation: 0, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0 };
+  const full = { ...transform, height: 1080, sourceHeight: 1080, positionY: 0 };
+  const scene = top => [
+    { sceneItemId: 1, sceneItemIndex: 0, sceneItemEnabled: true, sourceName: 'Радок', inputKind: 'browser_source', sceneItemTransform: transform },
+    { sceneItemId: 2, sceneItemIndex: 1, sceneItemEnabled: true, sourceName: top, inputKind: 'browser_source', sceneItemTransform: full },
+  ];
+  const obs = items => ({
+    state: { connected: true },
+    async request(type, data) {
+      switch (type) {
+        case 'GetCurrentProgramScene': return { currentProgramSceneName: 'Гульня' };
+        case 'GetVideoSettings': return { baseWidth: 1920, baseHeight: 1080 };
+        case 'GetCurrentSceneTransitionCursor': return { transitionCursor: 1 };
+        case 'GetSourceFilterList': return { filters: [] };
+        case 'GetSceneItemList': return { sceneItems: items };
+        case 'GetInputSettings': return { inputSettings: { url: data.inputName === 'Радок' ? 'http://x/ticker?source=abc' : 'http://x/season' } };
+        default: throw new Error(`unexpected ${type}`);
+      }
+    },
+  });
+  assert.deepEqual(await tickerSourceStatus(obs(scene(SEASON_INPUT)), 'abc'), { source: true, name: 'Радок' });
+  assert.equal((await tickerSourceStatus(obs(scene('Чат')), 'abc')).source, false);
+});
