@@ -1,7 +1,9 @@
-// Крыніца «Сезон» у OBS: празрыстая старонка-браўзер на ўвесь кадр, верхнім слоем у бягучай праграмнай сцэне.
+// Крыніцы «Сезон» і «Таймер» у OBS: празрыстая старонка-браўзер на ўвесь кадр, верхнім слоем у бягучай праграмнай сцэне.
 // Ідэмпатэнтна: калі крыніца ўжо ёсць, абнаўляюцца налады; у сцэне яна застаецца адна і падымаецца наверх.
 // Налады самой анімацыі (тэма, колькасць, хуткасць) сюды не трапляюць — старонка бярэ іх з праграмы сама.
 export const SEASON_INPUT = 'Tadewusz · Сезон';
+/** Тут, а не ў timer-source.js: радок правярае, што празрыстыя крыніцы яго не закрываюць (без цыклу імпартаў). */
+export const TIMER_INPUT = 'Tadewusz · Таймер';
 
 /**
  * Налады крыніцы: памер — базавая раздзяляльнасць OBS, 30 кадраў/с. Пакуль крыніца не бачная, старонка
@@ -13,25 +15,34 @@ export const seasonBrowserSettings = (url, width, height) => ({
 });
 
 /** @returns {Promise<{ sceneName: string, inputCreated: boolean, itemCreated: boolean }>} */
-export async function ensureSeasonSource(obs, { url }) {
+export function ensureSeasonSource(obs, { url }) {
+  return ensureOverlaySource(obs, { inputName: SEASON_INPUT, settings: (w, h) => seasonBrowserSettings(url, w, h), nameError: 'season_source_name' });
+}
+
+/**
+ * Празрыстая крыніца-браўзер на ўвесь кадр, верхнім слоем у праграмнай сцэне (агульнае для «Сезона» і «Таймера»).
+ * `settings(width, height)` — налады крыніцы для базавай раздзяляльнасці OBS.
+ * @returns {Promise<{ sceneName: string, inputCreated: boolean, itemCreated: boolean }>}
+ */
+export async function ensureOverlaySource(obs, { inputName, settings: make, nameError }) {
   if (!obs.state.connected) throw new Error('obs_required');
   const { baseWidth, baseHeight } = await obs.request('GetVideoSettings');
   const { currentProgramSceneName: sceneName } = await obs.request('GetCurrentProgramScene');
 
-  const settings = seasonBrowserSettings(url, baseWidth, baseHeight);
+  const settings = make(baseWidth, baseHeight);
   const { inputs } = await obs.request('GetInputList');
-  const existing = inputs.find(i => i.inputName === SEASON_INPUT);
-  if (existing && existing.inputKind !== 'browser_source') throw new Error('season_source_name');
-  if (existing) await obs.request('SetInputSettings', { inputName: SEASON_INPUT, inputSettings: settings, overlay: true });
-  else await obs.request('CreateInput', { sceneName, inputName: SEASON_INPUT, inputKind: 'browser_source', inputSettings: settings, sceneItemEnabled: true });
+  const existing = inputs.find(i => i.inputName === inputName);
+  if (existing && existing.inputKind !== 'browser_source') throw new Error(nameError);
+  if (existing) await obs.request('SetInputSettings', { inputName, inputSettings: settings, overlay: true });
+  else await obs.request('CreateInput', { sceneName, inputName, inputKind: 'browser_source', inputSettings: settings, sceneItemEnabled: true });
 
   // У сцэне — роўна адзін раз.
   const { sceneItems } = await obs.request('GetSceneItemList', { sceneName });
-  const ours = sceneItems.filter(item => item.sourceName === SEASON_INPUT).sort((a, b) => a.sceneItemId - b.sceneItemId);
+  const ours = sceneItems.filter(item => item.sourceName === inputName).sort((a, b) => a.sceneItemId - b.sceneItemId);
   let sceneItemId = ours[0]?.sceneItemId;
   // Новая крыніца трапляе ў сцэну разам з CreateInput; існуючую трэба дадаць, калі ў гэтай сцэне яе няма.
   const itemCreated = !existing || sceneItemId === undefined;
-  if (sceneItemId === undefined) ({ sceneItemId } = await obs.request('CreateSceneItem', { sceneName, sourceName: SEASON_INPUT, sceneItemEnabled: true }));
+  if (sceneItemId === undefined) ({ sceneItemId } = await obs.request('CreateSceneItem', { sceneName, sourceName: inputName, sceneItemEnabled: true }));
   for (const extra of ours.slice(1)) await obs.request('RemoveSceneItem', { sceneName, sceneItemId: extra.sceneItemId });
 
   await obs.request('SetSceneItemTransform', {

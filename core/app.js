@@ -1,4 +1,4 @@
-// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка, інтро / аўтра з рэйдам і HTTP.
+// Збор праграмы: сховішча, Twitch, OBS, галасаванне, бягучы радок, музыка, інтро / аўтра з рэйдам, сезон, таймер і HTTP.
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,6 +25,7 @@ import { Outro } from './outro/outro.js';
 import { Raid } from './raid/raid.js';
 import { outroOnAir } from './obs/intro-scene.js';
 import { Season } from './season/season.js';
+import { Timer } from './timer/timer.js';
 import { MusicBridge } from './music/bridge.js';
 import { LegacyMusicRewards } from './music/legacy-rewards.js';
 import { replyDefinitions, replyPlaceholders } from './chat/templates.js';
@@ -116,6 +117,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   const raid = new Raid({ twitch, log, countdown: () => outro.config().raidCountdown });
   const outro = new Outro({ store, intro, raid });
   const season = new Season({ store, dataDir, log });
+  const timer = new Timer({ store, log });
   // Сцэна «Інтро» адкрывае старонку праз лакальную старонку чакання (як і астатнія крыніцы): яна дачакаецца ядра.
   const startPage = pathToFileURL(fileURLToPath(new URL('../obs/start.html', import.meta.url))).href;
 
@@ -191,7 +193,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     });
   };
   let looping = false;
-  const timer = setInterval(() => {
+  const loopInterval = setInterval(() => {
     if (looping) return;
     looping = true;
     loop().catch(error => log('warn', 'loop.failed', errorCode(error))).finally(() => { looping = false; });
@@ -201,14 +203,14 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     port, webRoot, session, version, log,
     ...routes({
       store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications, obs,
-      steam, music, legacyMusic, intro, outro, raid, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
+      steam, music, legacyMusic, intro, outro, raid, season, timer, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin: () => { authRetryAt = 0; },
       baseUrl: () => http?.origin,
       introSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}`,
       outroSourceUrl: () => `${startPage}?page=intro&port=${new URL(http.origin).port}&mode=outro`,
       pageSourceUrl: page => `${startPage}?page=${page}&port=${new URL(http.origin).port}`,
     }),
   }).catch(async error => {
-    clearInterval(timer);
+    clearInterval(loopInterval);
     store.close();
     await releaseLock();
     throw error;
@@ -220,7 +222,7 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
   let closing;
   const close = () => closing ??= (async () => {
     stopping = true;
-    clearInterval(timer);
+    clearInterval(loopInterval);
     clearTimeout(winnerTimer);
     await run.idle();
     await run(pauseAllRewards);
@@ -236,5 +238,5 @@ export async function createApp({ dataDir, webRoot, port = 18745, version = 'dev
     log('info', 'app.stopped');
   })();
 
-  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, outro, raid, season, obs, close };
+  return { origin: http.origin, store, voting, ticker, voice, twitch, eventsub, votingReception, tickerReception, backups, intro, outro, raid, season, timer, obs, close };
 }

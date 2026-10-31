@@ -129,6 +129,29 @@ export interface SeasonConfig {
   fade: boolean;
 }
 
+export type TimerPosition = 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right' | 'center';
+
+export interface TimerConfig {
+  version: 1;
+  position: TimerPosition;
+  scale: number;
+  sound: boolean;
+  volume: number;
+  monitor: boolean;
+  hold: number;
+}
+
+export interface TimerView {
+  id: string;
+  goal: string;
+  duration: number;
+  deadline: number | null;
+  left: number | null;
+  paused: boolean;
+  finished: boolean;
+  shown: boolean;
+}
+
 export interface Settings {
   schemaVersion: number;
   replies: { enabled: boolean; templates: Record<string, string> };
@@ -181,10 +204,11 @@ export interface CoreState {
   raid: RaidState;
   intro: { config: IntroConfig; clips: number; byViewers: number; fetchedAt: number | null; fetching: boolean; error: string | null };
   season: { config: SeasonConfig; images: Record<SeasonTheme, string[]>; maxImages: number; maxBytes: number };
+  timer: { config: TimerConfig; recent: string[]; timer: TimerView | null; serverNow: number };
   history: { id: number; at: string; event: string }[];
   replyDefinitions: Record<string, [string, string]>;
   replyPlaceholders: Record<string, string[]>;
-  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; season: string; background: string; spotifyRedirect: string };
+  urls: { dock: string; overlay: string; ticker: string; music: string; intro: string; season: string; timer: string; background: string; spotifyRedirect: string };
 }
 
 /** Каманда ядру. Памылка — `Error` з кодам (тэкст — праз `errorText`). */
@@ -311,6 +335,16 @@ const ERRORS: Record<string, string> = {
   season_image_type: 'Толькі PNG, WebP або SVG',
   season_image_limit: 'У тэме ўжо 20 карцінак · Выдаліце лішнія',
   season_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Сезон» іншага тыпу · Перайменуйце яе',
+  timer_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Таймер» іншага тыпу · Перайменуйце яе',
+  timer_settings: 'Праверце налады таймера',
+  timer_position: 'Невядомае месца на экране',
+  timer_scale: 'Памер: ад 50 да 200 %',
+  timer_volume: 'Гучнасць: ад 0 да 100 %',
+  timer_hold: 'Пасля нуля: ад 0 да 600 секунд',
+  timer_goal: 'Мэта: да 80 знакаў, без службовых сімвалаў',
+  timer_duration: 'Час: ад секунды да 12 гадзін',
+  timer_not_running: 'Таймер не ідзе',
+  timer_not_paused: 'Таймер не на паўзе',
   outro_source_name: 'У OBS ужо ёсць крыніца «Tadewusz · Аўтра» іншага тыпу · Перайменуйце яе',
   outro_text: 'Надпіс: ад 1 да 80 знакаў',
   outro_links_title: 'Загаловак спасылак: да 60 знакаў',

@@ -641,3 +641,14 @@ input.invalid { border-color: var(--danger) !important; }
 .raid-alert.bad { background: var(--danger); color: #1a0508; animation: none; }
 .raid-alert.calm { background: var(--surface-3); color: var(--text); font-size: 14px; animation: none; }
 @keyframes raid-pulse { 50% { box-shadow: 0 0 0 4px rgba(30, 215, 96, 0.25); } }
+
+/* Таймер */
+.timer-clock { font: 600 44px/1 Consolas, monospace; font-variant-numeric: tabular-nums; text-align: center; margin: 4px 0 0; }
+.timer-clock.paused { color: var(--muted); }
+.timer-clock.finished { color: var(--warn); font-family: inherit; font-weight: 700; animation: timer-pulse 1.2s ease-in-out infinite; }
+@keyframes timer-pulse { 50% { opacity: 0.5; } }
+.timer-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.timer-bar > div { height: 100%; background: var(--accent); transform-origin: 0 50%; transition: transform 0.25s linear; }
+.timer-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.timer-presets .btn { padding: 0 4px; }
+.timer-presets .btn.active { border-color: var(--accent); color: var(--accent); }

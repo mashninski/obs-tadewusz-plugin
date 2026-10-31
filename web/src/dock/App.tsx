@@ -1,4 +1,4 @@
-// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, інтро / аўтра, сезон і «Сістэма» (стан, падключэнні, налады).
+// Док Tadewusz для OBS: адна панэль на ўсё — галасаванне, бягучы радок, музыка, інтро / аўтра, сезон, таймер і «Сістэма» (стан, падключэнні, налады).
 import { useEffect, useState } from 'preact/hooks';
 import type { DockController } from '../music/ui/dock/controller';
 import { MusicHero, MusicRules, MusicSound } from '../music/ui/dock/MusicSettings';
@@ -9,6 +9,7 @@ import { IntroTab } from './IntroTab';
 import { SeasonTab } from './SeasonTab';
 import { SystemTab } from './SystemTab';
 import { TickerTab } from './TickerTab';
+import { TimerTab } from './TimerTab';
 import { Dot, Hero, toast, Toasts } from './ui';
 import { VotingTab } from './VotingTab';
 
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'music', label: 'Музыка' },
   { id: 'intro', label: 'Інтро / Аўтра' },
   { id: 'season', label: 'Сезон' },
+  { id: 'timer', label: 'Таймер' },
   { id: 'system', label: 'Сістэма' },
 ] as const;
 
@@ -95,6 +97,7 @@ export function App({ music }: { music: DockController }) {
             )}
             {tab === 'intro' && state && <IntroTab state={state} />}
             {tab === 'season' && state && <SeasonTab state={state} />}
+            {tab === 'timer' && state && <TimerTab state={state} />}
             {tab === 'system' && state && <SystemTab state={state} music={music} focusConnections={focusConnections} />}
           </>
         )}

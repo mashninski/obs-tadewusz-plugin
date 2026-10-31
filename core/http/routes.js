@@ -3,13 +3,14 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { ensureIntroScene, ensureOutroScene } from '../obs/intro-scene.js';
 import { ensureSeasonSource } from '../obs/season-source.js';
+import { ensureTimerSource, routeTimerAudio } from '../obs/timer-source.js';
 
 const bool = value => { if (typeof value !== 'boolean') throw new Error('value_format'); return value; };
 const id = value => { if (typeof value !== 'string' || !value || value.length > 100) throw new Error('value_format'); return value; };
 
 export function routes(ctx) {
   const { store, settings, saveSettings, vault, twitch, eventsub, voting, votingReception, ticker, tickerReception, voice, notifications,
-    obs, steam, music, legacyMusic, intro, outro, raid, season, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
+    obs, steam, music, legacyMusic, intro, outro, raid, season, timer, backups, run, version, replyDefinitions, replyPlaceholders, pauseAllRewards, onTwitchLogin, baseUrl,
     introSourceUrl, outroSourceUrl, pageSourceUrl } = ctx;
 
   const state = () => {
@@ -30,11 +31,12 @@ export function routes(ctx) {
       outro: outro.snapshot(),
       raid: raid.snapshot(),
       season: season.snapshot(),
+      timer: timer.snapshot(),
       history: store.history(),
       replyDefinitions, replyPlaceholders,
       urls: {
         dock: `${baseUrl()}/`, overlay: `${baseUrl()}/overlay`, ticker: `${baseUrl()}/ticker?source=${ticker.source}`,
-        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`, season: `${baseUrl()}/season`,
+        music: `${baseUrl()}/music`, intro: `${baseUrl()}/intro`, season: `${baseUrl()}/season`, timer: `${baseUrl()}/timer`,
         // Фон для любой сцэны: праз старонку чакання — загрузіцца, нават калі OBS адкрыўся раней за праграму.
         background: pageSourceUrl('background'), spotifyRedirect: `${baseUrl()}/callback.html`,
       },
@@ -75,6 +77,8 @@ export function routes(ctx) {
     '/outro/state': () => outro.overlayState(),
     // Старонка «Сезон»: налады і адрасы сваіх карцінак бягучай тэмы (апытанне).
     '/season/state': () => season.overlayState(),
+    // Старонка «Таймер»: налады выгляду, бягучы таймер і час ядра (апытанне).
+    '/timer/state': () => timer.overlayState(),
     '/season/image': (url, res) => {
       const { bytes, type } = season.read(url.searchParams.get('theme'), url.searchParams.get('name'));
       // SVG стрымера не павінен выконваць скрыпты, нават калі адкрыць яго адрас напрамую.
@@ -236,6 +240,19 @@ export function routes(ctx) {
     '/api/season/upload': body => season.upload(body),
     '/api/season/remove': body => season.remove(body),
     '/api/season/source': () => ensureSeasonSource(obs, { url: pageSourceUrl('season') }),
+
+    // --- Таймер ---
+    '/api/timer/config': body => {
+      const value = timer.save(body);
+      routeTimerAudio(obs, { monitor: value.monitor }).catch(() => {});
+      return value;
+    },
+    '/api/timer/start': body => timer.start(body),
+    '/api/timer/pause': () => timer.pause(),
+    '/api/timer/resume': () => timer.resume(),
+    '/api/timer/add': body => timer.add(body),
+    '/api/timer/stop': () => timer.stop(),
+    '/api/timer/source': () => ensureTimerSource(obs, { url: pageSourceUrl('timer'), monitor: timer.config().monitor }),
 
     // --- Steam ---
     '/api/steam/login': () => ({ uri: steam.loginUrl() }),

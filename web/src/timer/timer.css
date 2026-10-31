@@ -1,0 +1,117 @@
+/*
+ * Таймер — картка ў куце кадра: мэта, адлік, паласа рэшты. Палітра і шрыфты — як у інтро (mashninski.com):
+ * графітава-зялёны фон, слановая косць, бірузовы акцэнт; мэта — Manrope, лічбы — JetBrains Mono.
+ * Памеры — для кадра 1080 px вышынёй; іншы кадр і налада «Памер» маштабуюць картку праз --k.
+ */
+
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-cyrillic-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-latin-ext-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+20A0-20AB, U+20AD-20C0, U+A720-A7FF;
+}
+@font-face {
+  font-family: Manrope;
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+  font-weight: 500;
+}
+
+:root {
+  --ivory: #ede6d8;
+  --ivory-dim: #8fa39a;
+  --accent: #4fb8b8;
+  --warm: #f0b44c;
+  --k: 1;
+  --margin: 48px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+#card {
+  position: absolute;
+  min-width: 360px;
+  max-width: 640px;
+  padding: 20px 28px 22px;
+  border-left: 3px solid var(--accent);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(10, 15, 13, 0.9), rgba(13, 25, 22, 0.84));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: var(--ivory);
+  font-family: Manrope, 'Segoe UI', system-ui, sans-serif;
+  transform: scale(var(--k));
+  opacity: 1;
+  transition: opacity 0.5s ease, translate 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#card[hidden] { display: block !important; opacity: 0; translate: 0 -16px; }
+[data-position^='bottom'] #card[hidden] { translate: 0 16px; }
+
+[data-position='top-left'] #card { top: var(--margin); left: var(--margin); transform-origin: 0 0; }
+[data-position='top-center'] #card { top: var(--margin); left: 50%; margin-left: 0; transform: translateX(-50%) scale(var(--k)); transform-origin: 50% 0; }
+[data-position='top-right'] #card { top: var(--margin); right: var(--margin); transform-origin: 100% 0; }
+[data-position='bottom-left'] #card { bottom: var(--margin); left: var(--margin); transform-origin: 0 100%; }
+[data-position='bottom-center'] #card { bottom: var(--margin); left: 50%; transform: translateX(-50%) scale(var(--k)); transform-origin: 50% 100%; }
+[data-position='bottom-right'] #card { bottom: var(--margin); right: var(--margin); transform-origin: 100% 100%; }
+[data-position='center'] #card { top: 50%; left: 50%; transform: translate(-50%, -50%) scale(var(--k)); transform-origin: 50% 50%; }
+
+#goal {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#goal:empty { display: none; }
+
+#clock {
+  margin-top: 4px;
+  font: 500 96px/1.05 'JetBrains Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  transition: color 0.3s ease, opacity 0.3s ease;
+}
+#goal:empty + #clock { margin-top: 0; }
+
+#bar { margin-top: 12px; height: 6px; border-radius: 3px; background: rgba(237, 230, 216, 0.12); overflow: hidden; }
+#fill {
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(79, 184, 184, 0.6);
+  transform-origin: 0 50%;
+  transition: transform 0.25s linear, background 0.3s ease;
+}
+
+/* Паўза: лічбы прыгаслыя і ціха дыхаюць. */
+.paused #clock { color: var(--ivory-dim); animation: breathe 2.4s ease-in-out infinite; }
+.paused #fill { background: var(--ivory-dim); box-shadow: none; }
+@keyframes breathe { 50% { opacity: 0.45; } }
+
+/* Апошнія 10 секунд: цёплы колер і лёгкі штуршок кожную секунду. */
+.urgent #clock { color: var(--warm); }
+.urgent #fill { background: var(--warm); box-shadow: 0 0 12px rgba(240, 180, 76, 0.6); }
+#clock.beat { animation: beat 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes beat { from { transform: scale(1.08); } }
+
+/* Нуль: картка свеціцца, надпіс пульсуе. */
+.finished { border-left-color: var(--warm); animation: glow 1.2s ease-in-out infinite; }
+.finished #clock { color: var(--warm); font-family: Manrope, 'Segoe UI', sans-serif; font-weight: 800; letter-spacing: 0; }
+.finished #fill { transform: scaleX(0); }
+@keyframes glow {
+  50% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(240, 180, 76, 0.55), 0 0 48px rgba(240, 180, 76, 0.35); }
+}
